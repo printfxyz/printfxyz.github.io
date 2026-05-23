@@ -19,6 +19,8 @@ const form = document.querySelector("#planner-form");
 const chart = document.querySelector("#net-worth-chart");
 const ctx = chart.getContext("2d");
 const body = document.querySelector("#projection-body");
+const propertyList = document.querySelector("#property-list");
+const addPropertyButton = document.querySelector("#add-property");
 
 const fields = {
   finalNetWorth: document.querySelector("#final-net-worth"),
@@ -45,8 +47,29 @@ function numberValue(name) {
   return Number.isFinite(value) ? value : 0;
 }
 
+function inputNumber(input) {
+  const value = Number(input.value);
+  return Number.isFinite(value) ? value : 0;
+}
+
 function percent(name) {
   return numberValue(name) / 100;
+}
+
+function propertyNumber(card, field) {
+  return inputNumber(card.querySelector(`[data-field="${field}"]`));
+}
+
+function getInvestmentProperties() {
+  return [...propertyList.querySelectorAll("[data-property-card]")].map((card) => ({
+    value: propertyNumber(card, "value"),
+    loan: propertyNumber(card, "loan"),
+    growthRate: propertyNumber(card, "growthRate") / 100,
+    interestRate: propertyNumber(card, "interestRate") / 100,
+    rentalIncome: propertyNumber(card, "rentalIncome"),
+    expenses: propertyNumber(card, "expenses"),
+    principal: propertyNumber(card, "principal")
+  }));
 }
 
 function getInputs() {
@@ -64,13 +87,7 @@ function getInputs() {
     equityGrowthRate: percent("equityGrowthRate"),
     dividendYield: percent("dividendYield"),
     reinvestDividends: data.get("reinvestDividends") === "on",
-    ipValue: numberValue("ipValue"),
-    ipLoan: numberValue("ipLoan"),
-    ipGrowthRate: percent("ipGrowthRate"),
-    ipInterestRate: percent("ipInterestRate"),
-    rentalIncome: numberValue("rentalIncome"),
-    ipExpenses: numberValue("ipExpenses"),
-    ipPrincipal: numberValue("ipPrincipal"),
+    investmentProperties: getInvestmentProperties(),
     homeValue: numberValue("homeValue"),
     homeLoan: numberValue("homeLoan"),
     homeGrowthRate: percent("homeGrowthRate"),
@@ -104,37 +121,47 @@ function calculateProjection(inputs) {
   const rows = [];
   let cash = inputs.cash;
   let equity = inputs.equityValue;
-  let ipValue = inputs.ipValue;
-  let ipLoan = inputs.ipLoan;
+  const properties = inputs.investmentProperties.map((property) => ({ ...property }));
   let homeValue = inputs.homeValue;
   let homeLoan = inputs.homeLoan;
 
   for (let year = 1; year <= inputs.years; year += 1) {
     const expenseInflator = Math.pow(1 + inputs.inflationRate, year - 1);
     const livingExpenses = inputs.livingExpenses * expenseInflator;
-    const rentalIncome = inputs.rentalIncome * expenseInflator;
-    const ipExpenses = inputs.ipExpenses * expenseInflator;
     const equityContribution = inputs.equityContribution * expenseInflator;
 
     const equityDividends = equity * inputs.dividendYield;
-    const ipInterest = Math.max(0, ipLoan * inputs.ipInterestRate);
-    const ipPrincipal = Math.min(ipLoan, inputs.ipPrincipal);
-    const rentalTaxable = rentalIncome - ipExpenses - ipInterest;
+    const propertyTotals = properties.reduce(
+      (totals, property) => {
+        const rentalIncome = property.rentalIncome * expenseInflator;
+        const expenses = property.expenses * expenseInflator;
+        const interest = Math.max(0, property.loan * property.interestRate);
+        const principal = Math.min(property.loan, property.principal);
+
+        totals.rentalTaxable += rentalIncome - expenses - interest;
+        totals.cashflow += rentalIncome - expenses - interest - principal;
+        totals.principal += principal;
+
+        return totals;
+      },
+      { rentalTaxable: 0, cashflow: 0, principal: 0 }
+    );
     const taxableIncome =
-      inputs.employmentIncome + inputs.otherIncome + equityDividends + rentalTaxable;
+      inputs.employmentIncome +
+      inputs.otherIncome +
+      equityDividends +
+      propertyTotals.rentalTaxable;
     const tax = totalTax(taxableIncome, inputs);
 
     const homeInterest = Math.max(0, homeLoan * inputs.homeInterestRate);
     const homePrincipal = Math.min(homeLoan, Math.max(0, inputs.homePayment - homeInterest));
     const dividendCash = inputs.reinvestDividends ? 0 : equityDividends;
     const reinvestedDividends = inputs.reinvestDividends ? equityDividends : 0;
-    const investmentPropertyCashflow =
-      rentalIncome - ipExpenses - ipInterest - ipPrincipal;
     const cashSurplus =
       inputs.employmentIncome +
       inputs.otherIncome +
       dividendCash +
-      investmentPropertyCashflow -
+      propertyTotals.cashflow -
       tax -
       livingExpenses -
       equityContribution -
@@ -142,12 +169,18 @@ function calculateProjection(inputs) {
 
     cash += cashSurplus;
     equity = equity * (1 + inputs.equityGrowthRate) + equityContribution + reinvestedDividends;
-    ipValue *= 1 + inputs.ipGrowthRate;
-    ipLoan = Math.max(0, ipLoan - ipPrincipal);
+    for (const property of properties) {
+      const principal = Math.min(property.loan, property.principal);
+      property.value *= 1 + property.growthRate;
+      property.loan = Math.max(0, property.loan - principal);
+    }
     homeValue *= 1 + inputs.homeGrowthRate;
     homeLoan = Math.max(0, homeLoan - homePrincipal);
 
-    const ipEquity = ipValue - ipLoan;
+    const ipEquity = properties.reduce(
+      (total, property) => total + property.value - property.loan,
+      0
+    );
     const homeEquity = homeValue - homeLoan;
     const netWorth = cash + equity + ipEquity + homeEquity;
     const realNetWorth = netWorth / Math.pow(1 + inputs.inflationRate, year);
@@ -167,6 +200,60 @@ function calculateProjection(inputs) {
   }
 
   return rows;
+}
+
+function createPropertyCard(values = {}) {
+  const index = propertyList.querySelectorAll("[data-property-card]").length + 1;
+  const card = document.createElement("article");
+  card.className = "property-card";
+  card.dataset.propertyCard = "";
+  card.innerHTML = `
+    <div class="property-card-header">
+      <h3>Property ${index}</h3>
+      <button class="remove-property" type="button">Remove</button>
+    </div>
+    <div class="field-grid">
+      <label>
+        Property value
+        <input data-field="value" type="number" min="0" step="1000" value="${values.value || 0}">
+      </label>
+      <label>
+        Loan balance
+        <input data-field="loan" type="number" min="0" step="1000" value="${values.loan || 0}">
+      </label>
+      <label>
+        Price growth %
+        <input data-field="growthRate" type="number" step="0.1" value="${values.growthRate || 4}">
+      </label>
+      <label>
+        Interest rate %
+        <input data-field="interestRate" type="number" min="0" step="0.1" value="${values.interestRate || 6}">
+      </label>
+      <label>
+        Rental income
+        <input data-field="rentalIncome" type="number" min="0" step="1000" value="${values.rentalIncome || 0}">
+      </label>
+      <label>
+        Property expenses
+        <input data-field="expenses" type="number" min="0" step="1000" value="${values.expenses || 0}">
+      </label>
+      <label>
+        Principal repayment
+        <input data-field="principal" type="number" min="0" step="1000" value="${values.principal || 0}">
+      </label>
+    </div>
+  `;
+  propertyList.append(card);
+  refreshPropertyControls();
+  update();
+}
+
+function refreshPropertyControls() {
+  const cards = [...propertyList.querySelectorAll("[data-property-card]")];
+  cards.forEach((card, index) => {
+    card.querySelector("h3").textContent = `Property ${index + 1}`;
+    card.querySelector(".remove-property").disabled = cards.length === 1;
+  });
 }
 
 function drawChart(rows) {
@@ -307,5 +394,22 @@ function update() {
 }
 
 form.addEventListener("input", update);
+addPropertyButton.addEventListener("click", () => createPropertyCard());
+propertyList.addEventListener("click", (event) => {
+  const removeButton = event.target.closest(".remove-property");
+  if (!removeButton) {
+    return;
+  }
+
+  const cards = propertyList.querySelectorAll("[data-property-card]");
+  if (cards.length <= 1) {
+    return;
+  }
+
+  removeButton.closest("[data-property-card]").remove();
+  refreshPropertyControls();
+  update();
+});
 window.addEventListener("resize", update);
+refreshPropertyControls();
 update();

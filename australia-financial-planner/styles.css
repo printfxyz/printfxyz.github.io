@@ -153,8 +153,63 @@ h2 {
 }
 
 .section-title span {
+  display: block;
   color: var(--muted);
   font-size: 0.82rem;
+}
+
+.section-title-actions {
+  align-items: center;
+}
+
+.small-button,
+.remove-property {
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+  padding: 0 10px;
+}
+
+.small-button:hover,
+.remove-property:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.remove-property:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.property-list {
+  display: grid;
+  gap: 12px;
+}
+
+.property-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfd;
+  padding: 12px;
+}
+
+.property-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.property-card-header h3 {
+  margin: 0;
+  font-size: 0.95rem;
 }
 
 .field-grid {
@@ -365,6 +420,11 @@ tbody tr:last-child td {
   .summary-grid,
   .details-grid {
     grid-template-columns: 1fr;
+  }
+
+  .section-title-actions {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   h1 {
