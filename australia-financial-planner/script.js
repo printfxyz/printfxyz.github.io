@@ -21,6 +21,7 @@ const ctx = chart.getContext("2d");
 const body = document.querySelector("#projection-body");
 const propertyList = document.querySelector("#property-list");
 const addPropertyButton = document.querySelector("#add-property");
+const STORAGE_KEY = "australia-financial-planner:v1";
 
 const fields = {
   finalNetWorth: document.querySelector("#final-net-worth"),
@@ -70,6 +71,83 @@ function getInvestmentProperties() {
     expenses: propertyNumber(card, "expenses"),
     principal: propertyNumber(card, "principal")
   }));
+}
+
+function getPropertyState() {
+  return [...propertyList.querySelectorAll("[data-property-card]")].map((card) => ({
+    value: propertyNumber(card, "value"),
+    loan: propertyNumber(card, "loan"),
+    growthRate: propertyNumber(card, "growthRate"),
+    interestRate: propertyNumber(card, "interestRate"),
+    rentalIncome: propertyNumber(card, "rentalIncome"),
+    expenses: propertyNumber(card, "expenses"),
+    principal: propertyNumber(card, "principal")
+  }));
+}
+
+function getFormState() {
+  const controls = [...form.querySelectorAll("input[name], select[name]")];
+  const fields = {};
+
+  for (const control of controls) {
+    fields[control.name] =
+      control.type === "checkbox" ? control.checked : control.value;
+  }
+
+  return {
+    fields,
+    investmentProperties: getPropertyState()
+  };
+}
+
+function saveState() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(getFormState()));
+  } catch (error) {
+    console.warn("Unable to save planner inputs.", error);
+  }
+}
+
+function applySavedFields(fields) {
+  if (!fields || typeof fields !== "object") {
+    return;
+  }
+
+  for (const [name, value] of Object.entries(fields)) {
+    const control = form.elements[name];
+    if (!control) {
+      continue;
+    }
+
+    if (control.type === "checkbox") {
+      control.checked = Boolean(value);
+    } else {
+      control.value = value;
+    }
+  }
+}
+
+function restoreState() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if (!saved || typeof saved !== "object") {
+      return;
+    }
+
+    applySavedFields(saved.fields);
+
+    if (
+      Array.isArray(saved.investmentProperties) &&
+      saved.investmentProperties.length > 0
+    ) {
+      propertyList.innerHTML = "";
+      saved.investmentProperties.forEach((property) =>
+        createPropertyCard(property, { shouldUpdate: false })
+      );
+    }
+  } catch (error) {
+    console.warn("Unable to restore planner inputs.", error);
+  }
 }
 
 function getInputs() {
@@ -202,7 +280,7 @@ function calculateProjection(inputs) {
   return rows;
 }
 
-function createPropertyCard(values = {}) {
+function createPropertyCard(values = {}, options = {}) {
   const index = propertyList.querySelectorAll("[data-property-card]").length + 1;
   const card = document.createElement("article");
   card.className = "property-card";
@@ -245,7 +323,9 @@ function createPropertyCard(values = {}) {
   `;
   propertyList.append(card);
   refreshPropertyControls();
-  update();
+  if (options.shouldUpdate !== false) {
+    update();
+  }
 }
 
 function refreshPropertyControls() {
@@ -391,6 +471,7 @@ function update() {
 
   drawChart(rows);
   renderTable(rows);
+  saveState();
 }
 
 form.addEventListener("input", update);
@@ -411,5 +492,6 @@ propertyList.addEventListener("click", (event) => {
   update();
 });
 window.addEventListener("resize", update);
+restoreState();
 refreshPropertyControls();
 update();
