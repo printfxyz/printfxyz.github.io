@@ -20,6 +20,7 @@ const chart = document.querySelector("#net-worth-chart");
 const ctx = chart.getContext("2d");
 const body = document.querySelector("#projection-body");
 const propertyList = document.querySelector("#property-list");
+const propertyEmpty = document.querySelector("#property-empty");
 const addPropertyButton = document.querySelector("#add-property");
 const STORAGE_KEY = "australia-financial-planner:v1";
 const TAP_SUPPRESSION_MS = 700;
@@ -51,6 +52,10 @@ function numberValue(name) {
 }
 
 function inputNumber(input) {
+  if (!input) {
+    return 0;
+  }
+
   const value = Number(input.value);
   return Number.isFinite(value) ? value : 0;
 }
@@ -113,8 +118,9 @@ function getInvestmentProperties() {
     growthRate: propertyNumber(card, "growthRate") / 100,
     interestRate: propertyNumber(card, "interestRate") / 100,
     rentalIncome: propertyNumber(card, "rentalIncome"),
+    rentalIncreaseRate: propertyNumber(card, "rentalIncreaseRate") / 100,
     expenses: propertyNumber(card, "expenses"),
-    principal: propertyNumber(card, "principal")
+    payment: propertyNumber(card, "payment")
   }));
 }
 
@@ -125,8 +131,9 @@ function getPropertyState() {
     growthRate: propertyNumber(card, "growthRate"),
     interestRate: propertyNumber(card, "interestRate"),
     rentalIncome: propertyNumber(card, "rentalIncome"),
+    rentalIncreaseRate: propertyNumber(card, "rentalIncreaseRate"),
     expenses: propertyNumber(card, "expenses"),
-    principal: propertyNumber(card, "principal")
+    payment: propertyNumber(card, "payment")
   }));
 }
 
@@ -181,10 +188,7 @@ function restoreState() {
 
     applySavedFields(saved.fields);
 
-    if (
-      Array.isArray(saved.investmentProperties) &&
-      saved.investmentProperties.length > 0
-    ) {
+    if (Array.isArray(saved.investmentProperties)) {
       propertyList.innerHTML = "";
       saved.investmentProperties.forEach((property) =>
         createPropertyCard(property, { shouldUpdate: false })
@@ -256,18 +260,22 @@ function calculateProjection(inputs) {
     const equityDividends = equity * inputs.dividendYield;
     const propertyTotals = properties.reduce(
       (totals, property) => {
-        const rentalIncome = property.rentalIncome * expenseInflator;
+        const rentInflator = Math.pow(1 + property.rentalIncreaseRate, year - 1);
+        const rentalIncome = property.rentalIncome * rentInflator;
         const expenses = property.expenses * expenseInflator;
         const interest = Math.max(0, property.loan * property.interestRate);
-        const principal = Math.min(property.loan, property.principal);
+        const principal = Math.min(
+          property.loan,
+          Math.max(0, property.payment - interest)
+        );
+        const mortgagePayment = interest + principal;
 
         totals.rentalTaxable += rentalIncome - expenses - interest;
-        totals.cashflow += rentalIncome - expenses - interest - principal;
-        totals.principal += principal;
+        totals.cashflow += rentalIncome - expenses - mortgagePayment;
 
         return totals;
       },
-      { rentalTaxable: 0, cashflow: 0, principal: 0 }
+      { rentalTaxable: 0, cashflow: 0 }
     );
     const taxableIncome =
       inputs.employmentIncome +
@@ -293,7 +301,8 @@ function calculateProjection(inputs) {
     cash += cashSurplus;
     equity = equity * (1 + inputs.equityGrowthRate) + equityContribution + reinvestedDividends;
     for (const property of properties) {
-      const principal = Math.min(property.loan, property.principal);
+      const interest = Math.max(0, property.loan * property.interestRate);
+      const principal = Math.min(property.loan, Math.max(0, property.payment - interest));
       property.value *= 1 + property.growthRate;
       property.loan = Math.max(0, property.loan - principal);
     }
@@ -357,12 +366,16 @@ function createPropertyCard(values = {}, options = {}) {
         <input data-field="rentalIncome" type="number" min="0" step="1000" value="${valueOrDefault(values.rentalIncome, 0)}">
       </label>
       <label>
+        Rental increase %
+        <input data-field="rentalIncreaseRate" type="number" min="0" step="0.1" value="${valueOrDefault(values.rentalIncreaseRate, 3)}">
+      </label>
+      <label>
         Property expenses
         <input data-field="expenses" type="number" min="0" step="1000" value="${valueOrDefault(values.expenses, 0)}">
       </label>
       <label>
-        Principal repayment
-        <input data-field="principal" type="number" min="0" step="1000" value="${valueOrDefault(values.principal, 0)}">
+        Annual mortgage payment
+        <input data-field="payment" type="number" min="0" step="1000" value="${valueOrDefault(values.payment, valueOrDefault(values.principal, 0))}">
       </label>
     </div>
   `;
@@ -381,11 +394,6 @@ function bindPropertyCard(card) {
 }
 
 function removeProperty(button) {
-  const cards = propertyList.querySelectorAll("[data-property-card]");
-  if (cards.length <= 1) {
-    return;
-  }
-
   const card = findPropertyCard(button);
   if (!card) {
     return;
@@ -401,8 +409,9 @@ function refreshPropertyControls() {
   cards.forEach((card, index) => {
     bindPropertyCard(card);
     card.querySelector("h3").textContent = `Property ${index + 1}`;
-    card.querySelector(".remove-property").disabled = cards.length === 1;
+    card.querySelector(".remove-property").disabled = false;
   });
+  propertyEmpty.hidden = cards.length !== 0;
 }
 
 function drawChart(rows) {

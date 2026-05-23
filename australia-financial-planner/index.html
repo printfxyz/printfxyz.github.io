@@ -138,16 +138,24 @@
                   <input data-field="rentalIncome" type="number" min="0" step="1000" value="36000">
                 </label>
                 <label>
+                  Rental increase %
+                  <input data-field="rentalIncreaseRate" type="number" min="0" step="0.1" value="3.0">
+                </label>
+                <label>
                   Property expenses
                   <input data-field="expenses" type="number" min="0" step="1000" value="9000">
                 </label>
                 <label>
-                  Principal repayment
-                  <input data-field="principal" type="number" min="0" step="1000" value="12000">
+                  Annual mortgage payment
+                  <input data-field="payment" type="number" min="0" step="1000" value="42000">
                 </label>
               </div>
             </article>
           </div>
+          <p id="property-empty" class="property-empty" hidden>
+            No investment properties included. Use Add property if you want to
+            model rental income, property debt, and investment property equity.
+          </p>
         </section>
 
         <section class="input-section">
