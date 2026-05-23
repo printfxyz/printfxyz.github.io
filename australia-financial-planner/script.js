@@ -202,12 +202,19 @@ function restoreState() {
 
 function getInputs() {
   const data = new FormData(form);
+  const currentAge = Math.max(0, Math.min(120, Math.round(numberValue("currentAge"))));
+  const lifeExpectancy = Math.max(
+    currentAge,
+    Math.min(120, Math.round(numberValue("lifeExpectancy")))
+  );
+
   return {
     employmentIncome: numberValue("employmentIncome"),
     otherIncome: numberValue("otherIncome"),
     livingExpenses: numberValue("livingExpenses"),
     cash: numberValue("cash"),
-    currentAge: Math.max(0, Math.min(100, Math.round(numberValue("currentAge")))),
+    currentAge,
+    lifeExpectancy,
     workingYears: Math.max(0, Math.min(50, Math.round(numberValue("workingYears")))),
     retirementExpenseRate: percent("retirementExpenseRate"),
     taxYear: data.get("taxYear"),
@@ -230,7 +237,7 @@ function getInputs() {
     homeGrowthRate: percent("homeGrowthRate"),
     homeInterestRate: percent("homeInterestRate"),
     homePayment: numberValue("homePayment"),
-    years: Math.max(1, Math.min(50, Math.round(numberValue("years"))))
+    years: Math.max(1, lifeExpectancy - currentAge + 1)
   };
 }
 
@@ -363,6 +370,7 @@ function calculateProjection(inputs) {
 
     rows.push({
       year,
+      age,
       taxableIncome,
       tax,
       cashSurplus: adjustedCashSurplus,
@@ -514,8 +522,8 @@ function drawChart(rows) {
 
   ctx.fillStyle = "#64707d";
   ctx.textAlign = "center";
-  ctx.fillText("Year 1", padding.left, rect.height - 12);
-  ctx.fillText(`Year ${rows.length}`, padding.left + width, rect.height - 12);
+  ctx.fillText(`Age ${rows[0].age}`, padding.left, rect.height - 12);
+  ctx.fillText(`Age ${rows[rows.length - 1].age}`, padding.left + width, rect.height - 12);
 
   function drawLine(series, color) {
     ctx.strokeStyle = color;
@@ -554,6 +562,7 @@ function renderTable(rows) {
     const tr = document.createElement("tr");
     const cells = [
       row.year,
+      row.age,
       money(row.taxableIncome),
       money(row.tax),
       money(row.cashSurplus),
@@ -568,7 +577,7 @@ function renderTable(rows) {
     cells.forEach((cell, index) => {
       const td = document.createElement("td");
       td.textContent = cell;
-      if (index > 0 && String(cell).includes("-")) {
+      if (index > 1 && String(cell).includes("-")) {
         td.classList.add("negative");
       }
       tr.append(td);
@@ -592,7 +601,8 @@ function update() {
   setMoney(fields.finalIpEquity, last.ipEquity);
   setMoney(fields.finalHomeEquity, last.homeEquity);
   setMoney(fields.finalCash, last.cash);
-  fields.chartCaption.textContent = `${inputs.taxYear}, ${inputs.years} years`;
+  fields.chartCaption.textContent =
+    `${inputs.taxYear}, age ${inputs.currentAge}-${inputs.lifeExpectancy}`;
 
   drawChart(rows);
   renderTable(rows);

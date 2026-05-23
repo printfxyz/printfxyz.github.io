@@ -61,6 +61,10 @@
               <input name="currentAge" type="number" min="0" max="100" step="1" value="40">
             </label>
             <label>
+              Life expectancy
+              <input name="lifeExpectancy" type="number" min="1" max="120" step="1" value="90">
+            </label>
+            <label>
               Working years left
               <input name="workingYears" type="number" min="0" max="50" step="1" value="20">
             </label>
@@ -230,10 +234,6 @@
               Annual mortgage payment
               <input name="homePayment" type="number" min="0" step="1000" value="54000">
             </label>
-            <label>
-              Projection years
-              <input name="years" type="number" min="1" max="50" step="1" value="30">
-            </label>
           </div>
         </section>
       </form>
@@ -319,6 +319,7 @@
               <thead>
                 <tr>
                   <th>Year</th>
+                  <th>Age</th>
                   <th>Taxable income</th>
                   <th>Tax</th>
                   <th>Surplus</th>
