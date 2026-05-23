@@ -206,6 +206,8 @@ function getInputs() {
     otherIncome: numberValue("otherIncome"),
     livingExpenses: numberValue("livingExpenses"),
     cash: numberValue("cash"),
+    workingYears: Math.max(0, Math.min(50, Math.round(numberValue("workingYears")))),
+    retirementExpenseRate: percent("retirementExpenseRate"),
     taxYear: data.get("taxYear"),
     includeMedicare: data.get("includeMedicare") === "on",
     inflationRate: percent("inflationRate"),
@@ -253,8 +255,13 @@ function calculateProjection(inputs) {
   let homeLoan = inputs.homeLoan;
 
   for (let year = 1; year <= inputs.years; year += 1) {
+    const isWorkingYear = year <= inputs.workingYears;
     const expenseInflator = Math.pow(1 + inputs.inflationRate, year - 1);
-    const livingExpenses = inputs.livingExpenses * expenseInflator;
+    const fullLivingExpenses = inputs.livingExpenses * expenseInflator;
+    const livingExpenses = isWorkingYear
+      ? fullLivingExpenses
+      : fullLivingExpenses * inputs.retirementExpenseRate;
+    const employmentIncome = isWorkingYear ? inputs.employmentIncome : 0;
     const equityContribution = inputs.equityContribution * expenseInflator;
 
     const equityDividends = equity * inputs.dividendYield;
@@ -278,7 +285,7 @@ function calculateProjection(inputs) {
       { rentalTaxable: 0, cashflow: 0 }
     );
     const taxableIncome =
-      inputs.employmentIncome +
+      employmentIncome +
       inputs.otherIncome +
       equityDividends +
       propertyTotals.rentalTaxable;
@@ -289,7 +296,7 @@ function calculateProjection(inputs) {
     const dividendCash = inputs.reinvestDividends ? 0 : equityDividends;
     const reinvestedDividends = inputs.reinvestDividends ? equityDividends : 0;
     const cashSurplus =
-      inputs.employmentIncome +
+      employmentIncome +
       inputs.otherIncome +
       dividendCash +
       propertyTotals.cashflow -
