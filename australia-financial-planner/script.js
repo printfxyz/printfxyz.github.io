@@ -22,6 +22,8 @@ const body = document.querySelector("#projection-body");
 const propertyList = document.querySelector("#property-list");
 const addPropertyButton = document.querySelector("#add-property");
 const STORAGE_KEY = "australia-financial-planner:v1";
+const TAP_SUPPRESSION_MS = 700;
+let lastTouchActivation = 0;
 
 const fields = {
   finalNetWorth: document.querySelector("#final-net-worth"),
@@ -59,6 +61,49 @@ function percent(name) {
 
 function propertyNumber(card, field) {
   return inputNumber(card.querySelector(`[data-field="${field}"]`));
+}
+
+function valueOrDefault(value, fallback) {
+  return value === undefined || value === null || value === "" ? fallback : value;
+}
+
+function activateOnTap(element, handler) {
+  if (!element || element.dataset.tapBound === "true") {
+    return;
+  }
+
+  element.dataset.tapBound = "true";
+  element.addEventListener(
+    "touchend",
+    (event) => {
+      event.preventDefault();
+      lastTouchActivation = Date.now();
+      handler(event);
+    },
+    { passive: false }
+  );
+  element.addEventListener("click", (event) => {
+    if (Date.now() - lastTouchActivation < TAP_SUPPRESSION_MS) {
+      event.preventDefault();
+      return;
+    }
+
+    handler(event);
+  });
+}
+
+function findPropertyCard(node) {
+  let current = node;
+
+  while (current && current !== propertyList) {
+    if (current.hasAttribute && current.hasAttribute("data-property-card")) {
+      return current;
+    }
+
+    current = current.parentElement;
+  }
+
+  return null;
 }
 
 function getInvestmentProperties() {
@@ -293,44 +338,68 @@ function createPropertyCard(values = {}, options = {}) {
     <div class="field-grid">
       <label>
         Property value
-        <input data-field="value" type="number" min="0" step="1000" value="${values.value || 0}">
+        <input data-field="value" type="number" min="0" step="1000" value="${valueOrDefault(values.value, 0)}">
       </label>
       <label>
         Loan balance
-        <input data-field="loan" type="number" min="0" step="1000" value="${values.loan || 0}">
+        <input data-field="loan" type="number" min="0" step="1000" value="${valueOrDefault(values.loan, 0)}">
       </label>
       <label>
         Price growth %
-        <input data-field="growthRate" type="number" step="0.1" value="${values.growthRate || 4}">
+        <input data-field="growthRate" type="number" step="0.1" value="${valueOrDefault(values.growthRate, 4)}">
       </label>
       <label>
         Interest rate %
-        <input data-field="interestRate" type="number" min="0" step="0.1" value="${values.interestRate || 6}">
+        <input data-field="interestRate" type="number" min="0" step="0.1" value="${valueOrDefault(values.interestRate, 6)}">
       </label>
       <label>
         Rental income
-        <input data-field="rentalIncome" type="number" min="0" step="1000" value="${values.rentalIncome || 0}">
+        <input data-field="rentalIncome" type="number" min="0" step="1000" value="${valueOrDefault(values.rentalIncome, 0)}">
       </label>
       <label>
         Property expenses
-        <input data-field="expenses" type="number" min="0" step="1000" value="${values.expenses || 0}">
+        <input data-field="expenses" type="number" min="0" step="1000" value="${valueOrDefault(values.expenses, 0)}">
       </label>
       <label>
         Principal repayment
-        <input data-field="principal" type="number" min="0" step="1000" value="${values.principal || 0}">
+        <input data-field="principal" type="number" min="0" step="1000" value="${valueOrDefault(values.principal, 0)}">
       </label>
     </div>
   `;
   propertyList.append(card);
+  bindPropertyCard(card);
   refreshPropertyControls();
   if (options.shouldUpdate !== false) {
     update();
   }
 }
 
+function bindPropertyCard(card) {
+  activateOnTap(card.querySelector(".remove-property"), (event) => {
+    removeProperty(event.currentTarget);
+  });
+}
+
+function removeProperty(button) {
+  const cards = propertyList.querySelectorAll("[data-property-card]");
+  if (cards.length <= 1) {
+    return;
+  }
+
+  const card = findPropertyCard(button);
+  if (!card) {
+    return;
+  }
+
+  card.remove();
+  refreshPropertyControls();
+  update();
+}
+
 function refreshPropertyControls() {
   const cards = [...propertyList.querySelectorAll("[data-property-card]")];
   cards.forEach((card, index) => {
+    bindPropertyCard(card);
     card.querySelector("h3").textContent = `Property ${index + 1}`;
     card.querySelector(".remove-property").disabled = cards.length === 1;
   });
@@ -475,22 +544,7 @@ function update() {
 }
 
 form.addEventListener("input", update);
-addPropertyButton.addEventListener("click", () => createPropertyCard());
-propertyList.addEventListener("click", (event) => {
-  const removeButton = event.target.closest(".remove-property");
-  if (!removeButton) {
-    return;
-  }
-
-  const cards = propertyList.querySelectorAll("[data-property-card]");
-  if (cards.length <= 1) {
-    return;
-  }
-
-  removeButton.closest("[data-property-card]").remove();
-  refreshPropertyControls();
-  update();
-});
+activateOnTap(addPropertyButton, () => createPropertyCard());
 window.addEventListener("resize", update);
 restoreState();
 refreshPropertyControls();

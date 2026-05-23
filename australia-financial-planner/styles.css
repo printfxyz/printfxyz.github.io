@@ -361,6 +361,21 @@ dd {
   padding: 18px;
 }
 
+.version-footer {
+  padding: 0 max(18px, calc((100vw - 1380px) / 2)) 30px;
+}
+
+.version-footer a {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.version-footer a:hover {
+  color: var(--accent);
+}
+
 .table-wrap {
   overflow-x: auto;
 }
@@ -412,7 +427,8 @@ tbody tr:last-child td {
 
 @media (max-width: 680px) {
   .app-header,
-  .planner-shell {
+  .planner-shell,
+  .version-footer {
     padding-inline: 14px;
   }
 

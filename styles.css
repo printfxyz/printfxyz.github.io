@@ -162,9 +162,25 @@ h2 {
   color: var(--muted);
 }
 
+.site-footer {
+  padding: 0 max(20px, calc((100vw - 1120px) / 2)) 28px;
+}
+
+.site-footer a {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.site-footer a:hover {
+  color: var(--accent);
+}
+
 @media (max-width: 640px) {
   .site-header,
-  main {
+  main,
+  .site-footer {
     padding: 24px 16px;
   }
 
