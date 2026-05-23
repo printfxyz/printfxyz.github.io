@@ -32,6 +32,7 @@ const fields = {
   yearOneTax: document.querySelector("#year-one-tax"),
   yearOneSurplus: document.querySelector("#year-one-surplus"),
   finalEquity: document.querySelector("#final-equity"),
+  finalSuper: document.querySelector("#final-super"),
   finalIpEquity: document.querySelector("#final-ip-equity"),
   finalHomeEquity: document.querySelector("#final-home-equity"),
   finalCash: document.querySelector("#final-cash"),
@@ -206,11 +207,18 @@ function getInputs() {
     otherIncome: numberValue("otherIncome"),
     livingExpenses: numberValue("livingExpenses"),
     cash: numberValue("cash"),
+    currentAge: Math.max(0, Math.min(100, Math.round(numberValue("currentAge")))),
     workingYears: Math.max(0, Math.min(50, Math.round(numberValue("workingYears")))),
     retirementExpenseRate: percent("retirementExpenseRate"),
     taxYear: data.get("taxYear"),
     includeMedicare: data.get("includeMedicare") === "on",
     inflationRate: percent("inflationRate"),
+    superBalance: numberValue("superBalance"),
+    employerSuperRate: percent("employerSuperRate"),
+    concessionalCap: numberValue("concessionalCap"),
+    superContributionTaxRate: percent("superContributionTaxRate"),
+    superGrowthRate: percent("superGrowthRate"),
+    superAccessAge: Math.max(0, Math.min(100, Math.round(numberValue("superAccessAge")))),
     equityValue: numberValue("equityValue"),
     equityContribution: numberValue("equityContribution"),
     equityGrowthRate: percent("equityGrowthRate"),
@@ -250,19 +258,29 @@ function calculateProjection(inputs) {
   const rows = [];
   let cash = inputs.cash;
   let equity = inputs.equityValue;
+  let superBalance = inputs.superBalance;
   const properties = inputs.investmentProperties.map((property) => ({ ...property }));
   let homeValue = inputs.homeValue;
   let homeLoan = inputs.homeLoan;
 
   for (let year = 1; year <= inputs.years; year += 1) {
+    const age = inputs.currentAge + year - 1;
     const isWorkingYear = year <= inputs.workingYears;
+    const canAccessSuper = !isWorkingYear && age >= inputs.superAccessAge;
     const expenseInflator = Math.pow(1 + inputs.inflationRate, year - 1);
     const fullLivingExpenses = inputs.livingExpenses * expenseInflator;
     const livingExpenses = isWorkingYear
       ? fullLivingExpenses
       : fullLivingExpenses * inputs.retirementExpenseRate;
     const employmentIncome = isWorkingYear ? inputs.employmentIncome : 0;
-    const equityContribution = inputs.equityContribution * expenseInflator;
+    const equityContribution = isWorkingYear
+      ? inputs.equityContribution * expenseInflator
+      : 0;
+    const grossSuperContribution = isWorkingYear
+      ? Math.min(employmentIncome * inputs.employerSuperRate, inputs.concessionalCap)
+      : 0;
+    const netSuperContribution =
+      grossSuperContribution * (1 - inputs.superContributionTaxRate);
 
     const equityDividends = equity * inputs.dividendYield;
     const propertyTotals = properties.reduce(
@@ -305,8 +323,9 @@ function calculateProjection(inputs) {
       equityContribution -
       inputs.homePayment;
 
-    cash += cashSurplus;
+    let adjustedCashSurplus = cashSurplus;
     equity = equity * (1 + inputs.equityGrowthRate) + equityContribution + reinvestedDividends;
+    superBalance = superBalance * (1 + inputs.superGrowthRate) + netSuperContribution;
     for (const property of properties) {
       const interest = Math.max(0, property.loan * property.interestRate);
       const principal = Math.min(property.loan, Math.max(0, property.payment - interest));
@@ -316,21 +335,40 @@ function calculateProjection(inputs) {
     homeValue *= 1 + inputs.homeGrowthRate;
     homeLoan = Math.max(0, homeLoan - homePrincipal);
 
+    if (!isWorkingYear && adjustedCashSurplus < 0) {
+      let shortfall = -adjustedCashSurplus;
+      if (canAccessSuper) {
+        const superWithdrawal = Math.min(superBalance, shortfall);
+        superBalance -= superWithdrawal;
+        shortfall -= superWithdrawal;
+      }
+
+      if (shortfall > 0) {
+        const equityWithdrawal = Math.min(equity, shortfall);
+        equity -= equityWithdrawal;
+        shortfall -= equityWithdrawal;
+      }
+
+      adjustedCashSurplus = -shortfall;
+    }
+
+    cash += adjustedCashSurplus;
     const ipEquity = properties.reduce(
       (total, property) => total + property.value - property.loan,
       0
     );
     const homeEquity = homeValue - homeLoan;
-    const netWorth = cash + equity + ipEquity + homeEquity;
+    const netWorth = cash + equity + superBalance + ipEquity + homeEquity;
     const realNetWorth = netWorth / Math.pow(1 + inputs.inflationRate, year);
 
     rows.push({
       year,
       taxableIncome,
       tax,
-      cashSurplus,
+      cashSurplus: adjustedCashSurplus,
       cash,
       equity,
+      superBalance,
       ipEquity,
       homeEquity,
       netWorth,
@@ -520,6 +558,7 @@ function renderTable(rows) {
       money(row.tax),
       money(row.cashSurplus),
       money(row.equity),
+      money(row.superBalance),
       money(row.ipEquity),
       money(row.homeEquity),
       money(row.netWorth),
@@ -549,6 +588,7 @@ function update() {
   setMoney(fields.yearOneTax, first.tax);
   setMoney(fields.yearOneSurplus, first.cashSurplus);
   setMoney(fields.finalEquity, last.equity);
+  setMoney(fields.finalSuper, last.superBalance);
   setMoney(fields.finalIpEquity, last.ipEquity);
   setMoney(fields.finalHomeEquity, last.homeEquity);
   setMoney(fields.finalCash, last.cash);

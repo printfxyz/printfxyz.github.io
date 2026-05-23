@@ -26,7 +26,8 @@
           <strong>Estimator only.</strong>
           Uses simplified Australian resident tax bands and a flat Medicare levy
           setting. It does not handle offsets, HELP, super, CGT discounts,
-          depreciation, land tax, stamp duty, or personal advice.
+          depreciation, land tax, stamp duty, transfer balance caps, minimum
+          pension drawdowns, or personal advice.
         </div>
       </div>
     </header>
@@ -56,6 +57,10 @@
               <input name="cash" type="number" step="1000" value="40000">
             </label>
             <label>
+              Current age
+              <input name="currentAge" type="number" min="0" max="100" step="1" value="40">
+            </label>
+            <label>
               Working years left
               <input name="workingYears" type="number" min="0" max="50" step="1" value="20">
             </label>
@@ -77,6 +82,39 @@
             <label class="check-field">
               <input name="includeMedicare" type="checkbox" checked>
               Include Medicare levy at 2%
+            </label>
+          </div>
+        </section>
+
+        <section class="input-section">
+          <div class="section-title">
+            <h2>Superannuation</h2>
+            <span>Employer contributions</span>
+          </div>
+          <div class="field-grid">
+            <label>
+              Current super balance
+              <input name="superBalance" type="number" min="0" step="1000" value="180000">
+            </label>
+            <label>
+              Employer super %
+              <input name="employerSuperRate" type="number" min="0" step="0.1" value="10.0">
+            </label>
+            <label>
+              Concessional cap
+              <input name="concessionalCap" type="number" min="0" step="1000" value="30000">
+            </label>
+            <label>
+              Contribution tax %
+              <input name="superContributionTaxRate" type="number" min="0" step="0.1" value="15.0">
+            </label>
+            <label>
+              Super growth %
+              <input name="superGrowthRate" type="number" step="0.1" value="5.0">
+            </label>
+            <label>
+              Super access age
+              <input name="superAccessAge" type="number" min="0" max="100" step="1" value="60">
             </label>
           </div>
         </section>
@@ -237,6 +275,10 @@
                 <dd id="final-equity">$0</dd>
               </div>
               <div>
+                <dt>Super balance</dt>
+                <dd id="final-super">$0</dd>
+              </div>
+              <div>
                 <dt>Investment property equity</dt>
                 <dd id="final-ip-equity">$0</dd>
               </div>
@@ -252,14 +294,17 @@
           </article>
 
           <article class="breakdown">
-            <h2>Tax Sources</h2>
+            <h2>Tax and Super Sources</h2>
             <p>
-              Tax bands are based on ATO Australian resident rates. Medicare is
-              modelled as a simple 2% levy when enabled.
+              Tax bands, super contribution caps, and contribution tax defaults
+              are based on ATO guidance. Super access is simplified to an
+              editable access age.
             </p>
             <ul>
               <li><a href="https://www.ato.gov.au/tax-rates-and-codes/tax-rates-australian-residents" target="_blank" rel="noreferrer">ATO resident tax rates</a></li>
               <li><a href="https://www.ato.gov.au/calculators-and-tools/medicare-levy-calculator" target="_blank" rel="noreferrer">ATO Medicare levy calculator</a></li>
+              <li><a href="https://www.ato.gov.au/tax-rates-and-codes/key-superannuation-rates-and-thresholds/contributions-caps" target="_blank" rel="noreferrer">ATO super contribution caps</a></li>
+              <li><a href="https://www.ato.gov.au/individuals-and-families/super-for-individuals-and-families/super/withdrawing-and-using-your-super/super-withdrawal-options" target="_blank" rel="noreferrer">ATO super withdrawal options</a></li>
             </ul>
           </article>
         </section>
@@ -278,6 +323,7 @@
                   <th>Tax</th>
                   <th>Surplus</th>
                   <th>Portfolio</th>
+                  <th>Super</th>
                   <th>Property equity</th>
                   <th>Home equity</th>
                   <th>Net worth</th>
