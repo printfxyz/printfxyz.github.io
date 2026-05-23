@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>HTML Tools</title>
+    <meta
+      name="description"
+      content="A collection of small, self-contained HTML, CSS, and JavaScript tools."
+    >
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <header class="site-header">
+      <div>
+        <p class="eyebrow">Static toolkit</p>
+        <h1>HTML Tools</h1>
+      </div>
+    </header>
+
+    <main>
+      <section class="toolbar" aria-label="Tool filters">
+        <label class="search">
+          <span>Search tools</span>
+          <input id="tool-search" type="search" placeholder="Search by name, tag, or description">
+        </label>
+      </section>
+
+      <section>
+        <div class="section-heading">
+          <h2>Tools</h2>
+          <span id="tool-count">0 tools</span>
+        </div>
+        <div id="tool-grid" class="tool-grid" aria-live="polite"></div>
+        <p id="empty-state" class="empty-state" hidden>No matching tools.</p>
+      </section>
+    </main>
+
+    <script src="tools.js"></script>
+    <script src="main.js"></script>
+  </body>
+</html>

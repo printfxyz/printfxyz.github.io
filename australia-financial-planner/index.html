@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Australia Financial Planner</title>
+    <meta
+      name="description"
+      content="Project income tax, equity investments, property, mortgages, rental income, and inflation for an Australian resident."
+    >
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <header class="app-header">
+      <a class="back-link" href="../">All tools</a>
+      <div class="header-grid">
+        <div>
+          <p class="eyebrow">Australia resident</p>
+          <h1>Financial Planner</h1>
+          <p class="intro">
+            Compare after-tax cashflow, equity investing, property exposure,
+            mortgage debt, and inflation-adjusted net worth.
+          </p>
+        </div>
+        <div class="assumption-note">
+          <strong>Estimator only.</strong>
+          Uses simplified Australian resident tax bands and a flat Medicare levy
+          setting. It does not handle offsets, HELP, super, CGT discounts,
+          depreciation, land tax, stamp duty, or personal advice.
+        </div>
+      </div>
+    </header>
+
+    <main class="planner-shell">
+      <form id="planner-form" class="inputs" autocomplete="off">
+        <section class="input-section">
+          <div class="section-title">
+            <h2>Income and Tax</h2>
+            <span>Annual amounts</span>
+          </div>
+          <div class="field-grid">
+            <label>
+              Employment income
+              <input name="employmentIncome" type="number" min="0" step="1000" value="140000">
+            </label>
+            <label>
+              Other taxable income
+              <input name="otherIncome" type="number" step="1000" value="0">
+            </label>
+            <label>
+              Living expenses today
+              <input name="livingExpenses" type="number" min="0" step="1000" value="72000">
+            </label>
+            <label>
+              Current cash
+              <input name="cash" type="number" step="1000" value="40000">
+            </label>
+            <label>
+              Tax year
+              <select name="taxYear">
+                <option value="2025-26">2025-26 resident rates</option>
+                <option value="2026-27">2026-27 resident rates</option>
+              </select>
+            </label>
+            <label>
+              Inflation rate %
+              <input name="inflationRate" type="number" min="0" step="0.1" value="2.5">
+            </label>
+            <label class="check-field">
+              <input name="includeMedicare" type="checkbox" checked>
+              Include Medicare levy at 2%
+            </label>
+          </div>
+        </section>
+
+        <section class="input-section">
+          <div class="section-title">
+            <h2>Equity Investment</h2>
+            <span>Portfolio assumptions</span>
+          </div>
+          <div class="field-grid">
+            <label>
+              Current portfolio
+              <input name="equityValue" type="number" min="0" step="1000" value="120000">
+            </label>
+            <label>
+              Annual contribution
+              <input name="equityContribution" type="number" min="0" step="1000" value="30000">
+            </label>
+            <label>
+              Capital growth %
+              <input name="equityGrowthRate" type="number" step="0.1" value="6.0">
+            </label>
+            <label>
+              Dividend yield %
+              <input name="dividendYield" type="number" min="0" step="0.1" value="3.0">
+            </label>
+            <label class="check-field">
+              <input name="reinvestDividends" type="checkbox" checked>
+              Reinvest dividends
+            </label>
+          </div>
+        </section>
+
+        <section class="input-section">
+          <div class="section-title">
+            <h2>Investment Property</h2>
+            <span>Rental and loan</span>
+          </div>
+          <div class="field-grid">
+            <label>
+              Property value
+              <input name="ipValue" type="number" min="0" step="1000" value="750000">
+            </label>
+            <label>
+              Loan balance
+              <input name="ipLoan" type="number" min="0" step="1000" value="520000">
+            </label>
+            <label>
+              Price growth %
+              <input name="ipGrowthRate" type="number" step="0.1" value="4.0">
+            </label>
+            <label>
+              Interest rate %
+              <input name="ipInterestRate" type="number" min="0" step="0.1" value="6.2">
+            </label>
+            <label>
+              Rental income
+              <input name="rentalIncome" type="number" min="0" step="1000" value="36000">
+            </label>
+            <label>
+              Property expenses
+              <input name="ipExpenses" type="number" min="0" step="1000" value="9000">
+            </label>
+            <label>
+              Principal repayment
+              <input name="ipPrincipal" type="number" min="0" step="1000" value="12000">
+            </label>
+          </div>
+        </section>
+
+        <section class="input-section">
+          <div class="section-title">
+            <h2>Primary Home</h2>
+            <span>Owner-occupied</span>
+          </div>
+          <div class="field-grid">
+            <label>
+              Home value
+              <input name="homeValue" type="number" min="0" step="1000" value="1100000">
+            </label>
+            <label>
+              Mortgage balance
+              <input name="homeLoan" type="number" min="0" step="1000" value="700000">
+            </label>
+            <label>
+              Home price growth %
+              <input name="homeGrowthRate" type="number" step="0.1" value="3.5">
+            </label>
+            <label>
+              Mortgage interest %
+              <input name="homeInterestRate" type="number" min="0" step="0.1" value="6.0">
+            </label>
+            <label>
+              Annual mortgage payment
+              <input name="homePayment" type="number" min="0" step="1000" value="54000">
+            </label>
+            <label>
+              Projection years
+              <input name="years" type="number" min="1" max="50" step="1" value="30">
+            </label>
+          </div>
+        </section>
+      </form>
+
+      <section class="results" aria-live="polite">
+        <div class="summary-grid">
+          <article class="metric">
+            <span>Final net worth</span>
+            <strong id="final-net-worth">$0</strong>
+          </article>
+          <article class="metric">
+            <span>In today's dollars</span>
+            <strong id="real-net-worth">$0</strong>
+          </article>
+          <article class="metric">
+            <span>Year 1 tax</span>
+            <strong id="year-one-tax">$0</strong>
+          </article>
+          <article class="metric">
+            <span>Year 1 surplus</span>
+            <strong id="year-one-surplus">$0</strong>
+          </article>
+        </div>
+
+        <section class="chart-section">
+          <div class="section-title">
+            <h2>Net Worth Projection</h2>
+            <span id="chart-caption">Nominal vs real</span>
+          </div>
+          <canvas id="net-worth-chart" width="900" height="360"></canvas>
+        </section>
+
+        <section class="details-grid">
+          <article class="breakdown">
+            <h2>Final Position</h2>
+            <dl>
+              <div>
+                <dt>Equity portfolio</dt>
+                <dd id="final-equity">$0</dd>
+              </div>
+              <div>
+                <dt>Investment property equity</dt>
+                <dd id="final-ip-equity">$0</dd>
+              </div>
+              <div>
+                <dt>Primary home equity</dt>
+                <dd id="final-home-equity">$0</dd>
+              </div>
+              <div>
+                <dt>Cash balance</dt>
+                <dd id="final-cash">$0</dd>
+              </div>
+            </dl>
+          </article>
+
+          <article class="breakdown">
+            <h2>Tax Sources</h2>
+            <p>
+              Tax bands are based on ATO Australian resident rates. Medicare is
+              modelled as a simple 2% levy when enabled.
+            </p>
+            <ul>
+              <li><a href="https://www.ato.gov.au/tax-rates-and-codes/tax-rates-australian-residents" target="_blank" rel="noreferrer">ATO resident tax rates</a></li>
+              <li><a href="https://www.ato.gov.au/calculators-and-tools/medicare-levy-calculator" target="_blank" rel="noreferrer">ATO Medicare levy calculator</a></li>
+            </ul>
+          </article>
+        </section>
+
+        <section class="table-section">
+          <div class="section-title">
+            <h2>Annual Projection</h2>
+            <span>End of year values</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Year</th>
+                  <th>Taxable income</th>
+                  <th>Tax</th>
+                  <th>Surplus</th>
+                  <th>Portfolio</th>
+                  <th>Property equity</th>
+                  <th>Home equity</th>
+                  <th>Net worth</th>
+                  <th>Real net worth</th>
+                </tr>
+              </thead>
+              <tbody id="projection-body"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script src="script.js"></script>
+  </body>
+</html>
