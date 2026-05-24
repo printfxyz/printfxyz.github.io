@@ -155,6 +155,33 @@
         <section class="input-section">
           <div class="section-title section-title-actions">
             <div>
+              <h2>Allocation</h2>
+              <span>Investable money</span>
+            </div>
+            <button id="apply-allocation" class="small-button" type="button">Apply allocation</button>
+          </div>
+          <div class="field-grid">
+            <label>
+              Allocatable money
+              <input name="allocatableMoney" type="number" min="0" step="1000" value="0">
+            </label>
+            <label>
+              Equity allocation %
+              <input name="allocationEquityRate" type="number" min="0" step="1" value="50">
+            </label>
+            <label>
+              Mortgage offset allocation %
+              <input name="allocationOffsetRate" type="number" min="0" step="1" value="50">
+            </label>
+          </div>
+          <p id="allocation-output" class="allocation-output">
+            Applies the allocatable money to Current portfolio and primary-home Offset balance.
+          </p>
+        </section>
+
+        <section class="input-section">
+          <div class="section-title section-title-actions">
+            <div>
               <h2>Investment Properties</h2>
               <span>Rental and loans</span>
             </div>

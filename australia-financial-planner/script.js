@@ -23,6 +23,8 @@ const propertyList = document.querySelector("#property-list");
 const propertyEmpty = document.querySelector("#property-empty");
 const addPropertyButton = document.querySelector("#add-property");
 const calculateButton = document.querySelector("#calculate-plan");
+const applyAllocationButton = document.querySelector("#apply-allocation");
+const allocationOutput = document.querySelector("#allocation-output");
 const STORAGE_KEY = "australia-financial-planner:v1";
 const TAP_SUPPRESSION_MS = 700;
 let lastTouchActivation = 0;
@@ -66,6 +68,46 @@ function inputNumber(input) {
 
 function percent(name) {
   return numberValue(name) / 100;
+}
+
+function setNamedInputValue(name, value) {
+  const control = form.elements[name];
+  if (!control) {
+    return;
+  }
+
+  control.value = Math.round(value);
+  control.classList.add("applied-field");
+  window.setTimeout(() => control.classList.remove("applied-field"), 1200);
+}
+
+function applyManualAllocation() {
+  const amount = Math.max(0, numberValue("allocatableMoney"));
+  const equityRate = Math.max(0, percent("allocationEquityRate"));
+  const offsetRate = Math.max(0, percent("allocationOffsetRate"));
+  const totalRate = equityRate + offsetRate;
+
+  if (totalRate <= 0) {
+    allocationOutput.textContent =
+      "Enter an equity or mortgage offset allocation percentage before applying.";
+    return;
+  }
+
+  const equityShare = equityRate / totalRate;
+  const offsetShare = offsetRate / totalRate;
+  const equityAmount = amount * equityShare;
+  const offsetAmount = amount * offsetShare;
+
+  setNamedInputValue("equityValue", equityAmount);
+  setNamedInputValue("homeOffset", offsetAmount);
+
+  const normalisedCopy =
+    totalRate > 0 && Math.abs(totalRate - 1) > 0.0001
+      ? " Percentages were normalised to split the full amount."
+      : "";
+  allocationOutput.textContent =
+    `Applied ${money(equityAmount)} to equities and ${money(offsetAmount)} to mortgage offset.${normalisedCopy} Click Calculate to update results.`;
+  saveState();
 }
 
 function propertyNumber(card, field) {
@@ -633,6 +675,7 @@ function update() {
 form.addEventListener("input", saveState);
 form.addEventListener("submit", (event) => event.preventDefault());
 activateOnTap(addPropertyButton, () => createPropertyCard());
+activateOnTap(applyAllocationButton, applyManualAllocation);
 activateOnTap(calculateButton, update);
 window.addEventListener("resize", () => {
   if (latestRows.length > 0) {
