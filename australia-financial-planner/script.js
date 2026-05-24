@@ -415,7 +415,6 @@ function getLiquidPool(inputs) {
   return (
     inputs.cash +
     inputs.equityValue +
-    inputs.homeOffset +
     inputs.investmentProperties.reduce((total, property) => total + property.offset, 0)
   );
 }
@@ -429,7 +428,7 @@ function createAllocation(name, inputs, reserve) {
     name,
     cash: reserve,
     equityValue: 0,
-    homeOffset: 0,
+    homeOffset: inputs.homeOffset,
     propertyOffsets: inputs.investmentProperties.map(() => 0)
   };
 }
@@ -456,14 +455,6 @@ function applyTargetAllocation(allocation, amount, targets) {
 
 function getOffsetTargets(inputs, scope = "all") {
   const targets = [];
-
-  if (scope !== "investment") {
-    targets.push({
-      capacity: Math.max(0, inputs.homeLoan),
-      rate: inputs.homeInterestRate,
-      type: "home"
-    });
-  }
 
   if (scope !== "home") {
     inputs.investmentProperties.forEach((property, index) => {
@@ -499,14 +490,6 @@ function buildAllocations(inputs) {
   equityFocus.equityValue = allocatable;
   allocations.push(equityFocus);
 
-  const homeOffset = createAllocation("Home offset first", inputs, reserve);
-  homeOffset.equityValue = applyTargetAllocation(
-    homeOffset,
-    allocatable,
-    getOffsetTargets(inputs, "home")
-  );
-  allocations.push(homeOffset);
-
   const investmentOffsets = createAllocation("Investment offsets first", inputs, reserve);
   investmentOffsets.equityValue = applyTargetAllocation(
     investmentOffsets,
@@ -538,7 +521,7 @@ function applyAllocationToInputs(inputs, allocation, workingYears = inputs.worki
   const next = cloneInputs(inputs);
   next.cash = allocation.cash;
   next.equityValue = allocation.equityValue;
-  next.homeOffset = allocation.homeOffset;
+  next.homeOffset = inputs.homeOffset;
   next.workingYears = workingYears;
   next.investmentProperties.forEach((property, index) => {
     property.offset = allocation.propertyOffsets[index] || 0;
@@ -596,7 +579,6 @@ function setNamedInput(name, value) {
 function writeAllocationToForm(result) {
   setNamedInput("cash", result.inputs.cash);
   setNamedInput("equityValue", result.inputs.equityValue);
-  setNamedInput("homeOffset", result.inputs.homeOffset);
   setNamedInput("workingYears", result.inputs.workingYears);
 
   const cards = [...propertyList.querySelectorAll("[data-property-card]")];
