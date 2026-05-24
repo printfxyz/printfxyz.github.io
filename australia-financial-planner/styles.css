@@ -237,6 +237,9 @@ h2 {
   position: sticky;
   bottom: 16px;
   z-index: 2;
+  display: grid;
+  grid-template-columns: minmax(96px, 0.35fr) minmax(0, 1fr);
+  gap: 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.94);
@@ -244,21 +247,47 @@ h2 {
   padding: 10px;
 }
 
+.share-button,
 .calculate-button {
   width: 100%;
   min-height: 46px;
-  border: 1px solid var(--accent);
   border-radius: 8px;
-  background: var(--accent);
-  color: #fff;
   cursor: pointer;
   font: inherit;
   font-weight: 850;
   padding: 0 16px;
 }
 
+.share-button {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+}
+
+.calculate-button {
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.share-button:hover,
+.calculate-button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .calculate-button:hover {
   background: #fff;
+}
+
+.share-status {
+  grid-column: 1 / -1;
+  min-height: 1.2em;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
 }
 
 .field-grid {

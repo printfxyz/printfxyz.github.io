@@ -23,10 +23,13 @@ const propertyList = document.querySelector("#property-list");
 const propertyEmpty = document.querySelector("#property-empty");
 const addPropertyButton = document.querySelector("#add-property");
 const calculateButton = document.querySelector("#calculate-plan");
+const shareButton = document.querySelector("#share-plan");
+const shareStatus = document.querySelector("#share-status");
 const allocationOutput = document.querySelector("#allocation-output");
 const allocationEquityLabel = document.querySelector("#allocation-equity-label");
 const allocationOffsetLabel = document.querySelector("#allocation-offset-label");
 const STORAGE_KEY = "australia-financial-planner:v1";
+const SHARE_PARAM = "plan";
 const TAP_SUPPRESSION_MS = 700;
 let lastTouchActivation = 0;
 let latestRows = [];
@@ -180,6 +183,48 @@ function getFormState() {
   };
 }
 
+function encodeShareState(state) {
+  const json = JSON.stringify(state);
+  const bytes = new TextEncoder().encode(json);
+  let binary = "";
+
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function decodeShareState(encoded) {
+  const base64 = encoded.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+  const binary = atob(padded);
+  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+
+function getSharedState() {
+  try {
+    const url = new URL(window.location.href);
+    const encoded = url.searchParams.get(SHARE_PARAM);
+    if (!encoded) {
+      return null;
+    }
+
+    const shared = decodeShareState(encoded);
+    return shared && typeof shared === "object" ? shared : null;
+  } catch (error) {
+    console.warn("Unable to restore planner inputs from shared URL.", error);
+    return null;
+  }
+}
+
+function getShareUrl() {
+  const url = new URL(window.location.href);
+  url.searchParams.set(SHARE_PARAM, encodeShareState(getFormState()));
+  return url.toString();
+}
+
 function saveState() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(getFormState()));
@@ -207,21 +252,39 @@ function applySavedFields(fields) {
   }
 }
 
+function applyState(state) {
+  if (
+    !state ||
+    typeof state !== "object" ||
+    (typeof state.fields !== "object" && !Array.isArray(state.investmentProperties))
+  ) {
+    return false;
+  }
+
+  applySavedFields(state.fields);
+
+  if (Array.isArray(state.investmentProperties)) {
+    propertyList.innerHTML = "";
+    state.investmentProperties.forEach((property) =>
+      createPropertyCard(property, { shouldUpdate: false, shouldSave: false })
+    );
+  }
+
+  return true;
+}
+
 function restoreState() {
   try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (!saved || typeof saved !== "object") {
+    const shared = getSharedState();
+    if (applyState(shared)) {
+      saveState();
+      if (shareStatus) {
+        shareStatus.textContent = "Shared inputs loaded.";
+      }
       return;
     }
 
-    applySavedFields(saved.fields);
-
-    if (Array.isArray(saved.investmentProperties)) {
-      propertyList.innerHTML = "";
-      saved.investmentProperties.forEach((property) =>
-        createPropertyCard(property, { shouldUpdate: false, shouldSave: false })
-      );
-    }
+    applyState(JSON.parse(localStorage.getItem(STORAGE_KEY)));
   } catch (error) {
     console.warn("Unable to restore planner inputs.", error);
   }
@@ -903,12 +966,49 @@ function update() {
   saveState();
 }
 
+async function sharePlan() {
+  saveState();
+  const url = getShareUrl();
+
+  try {
+    if (navigator.share) {
+      await navigator.share({
+        title: document.title,
+        url
+      });
+      if (shareStatus) {
+        shareStatus.textContent = "Share link ready.";
+      }
+      return;
+    }
+
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(url);
+      if (shareStatus) {
+        shareStatus.textContent = "Share link copied.";
+      }
+      return;
+    }
+  } catch (error) {
+    if (error && error.name === "AbortError") {
+      return;
+    }
+
+    console.warn("Unable to share planner URL.", error);
+  }
+
+  if (shareStatus) {
+    shareStatus.textContent = url;
+  }
+}
+
 form.addEventListener("input", () => {
   refreshAllocationPreview();
   saveState();
 });
 form.addEventListener("submit", (event) => event.preventDefault());
 activateOnTap(addPropertyButton, () => createPropertyCard());
+activateOnTap(shareButton, sharePlan);
 activateOnTap(calculateButton, update);
 window.addEventListener("resize", () => {
   if (latestRows.length > 0) {
