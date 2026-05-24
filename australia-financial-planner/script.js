@@ -70,6 +70,11 @@ function percent(name) {
   return numberValue(name) / 100;
 }
 
+function financialYearStart(taxYear) {
+  const match = String(taxYear || "").match(/^(\d{4})-/);
+  return match ? Number(match[1]) : 2025;
+}
+
 function setNamedInputValue(name, value) {
   const control = form.elements[name];
   if (!control) {
@@ -274,6 +279,7 @@ function getInputs() {
     superGrowthRate: percent("superGrowthRate"),
     superAccessAge: Math.max(0, Math.min(100, Math.round(numberValue("superAccessAge")))),
     equityValue: numberValue("equityValue"),
+    equityCostBase: numberValue("equityCostBase"),
     equityContribution: numberValue("equityContribution"),
     equityGrowthRate: percent("equityGrowthRate"),
     dividendYield: percent("dividendYield"),
@@ -285,6 +291,7 @@ function getInputs() {
     homeGrowthRate: percent("homeGrowthRate"),
     homeInterestRate: percent("homeInterestRate"),
     homePayment: numberValue("homePayment"),
+    projectionStartYear: financialYearStart(data.get("taxYear")),
     years: Math.max(1, lifeExpectancy - currentAge + 1)
   };
 }
@@ -309,10 +316,131 @@ function totalTax(taxableIncome, inputs) {
   return baseTax + medicare;
 }
 
+function capitalGainForSale({
+  saleAmount,
+  equityValue,
+  costBase,
+  reformBase,
+  reformIndexedBase,
+  usesReformedCgt
+}) {
+  if (saleAmount <= 0 || equityValue <= 0) {
+    return {
+      taxableGain: 0,
+      minimumTaxBase: 0,
+      grossGain: 0,
+      soldCostBase: 0,
+      soldReformBase: 0,
+      soldReformIndexedBase: 0
+    };
+  }
+
+  const fractionSold = Math.min(1, saleAmount / equityValue);
+  const soldCostBase = Math.max(0, costBase * fractionSold);
+  const grossGain = Math.max(0, saleAmount - soldCostBase);
+
+  if (!usesReformedCgt || reformBase === null || reformIndexedBase === null) {
+    return {
+      taxableGain: grossGain * 0.5,
+      minimumTaxBase: 0,
+      grossGain,
+      soldCostBase,
+      soldReformBase: 0,
+      soldReformIndexedBase: 0
+    };
+  }
+
+  const soldReformBase = Math.max(0, reformBase * fractionSold);
+  const soldReformIndexedBase = Math.max(0, reformIndexedBase * fractionSold);
+  const preReformTaxableGain = Math.max(0, soldReformBase - soldCostBase) * 0.5;
+  const postReformRealGain = Math.max(0, saleAmount - soldReformIndexedBase);
+
+  return {
+    taxableGain: preReformTaxableGain + postReformRealGain,
+    minimumTaxBase: postReformRealGain,
+    grossGain,
+    soldCostBase,
+    soldReformBase,
+    soldReformIndexedBase
+  };
+}
+
+function taxOnCapitalGain(capitalGain, taxableIncome, baseTax, inputs) {
+  const marginalTax =
+    totalTax(taxableIncome + capitalGain.taxableGain, inputs) - baseTax;
+  const minimumTax = capitalGain.minimumTaxBase * 0.3;
+  return Math.max(0, marginalTax, minimumTax);
+}
+
+function planEquitySaleForShortfall({
+  shortfall,
+  equity,
+  costBase,
+  reformBase,
+  reformIndexedBase,
+  usesReformedCgt,
+  taxableIncome,
+  baseTax,
+  inputs
+}) {
+  if (shortfall <= 0 || equity <= 0) {
+    return null;
+  }
+
+  let saleAmount = Math.min(equity, shortfall);
+  let capitalGain = null;
+  let capitalGainsTax = 0;
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    capitalGain = capitalGainForSale({
+      saleAmount,
+      equityValue: equity,
+      costBase,
+      reformBase,
+      reformIndexedBase,
+      usesReformedCgt
+    });
+    capitalGainsTax = taxOnCapitalGain(capitalGain, taxableIncome, baseTax, inputs);
+    const nextSaleAmount = Math.min(equity, shortfall + capitalGainsTax);
+
+    if (Math.abs(nextSaleAmount - saleAmount) < 1) {
+      saleAmount = nextSaleAmount;
+      break;
+    }
+
+    saleAmount = nextSaleAmount;
+  }
+
+  capitalGain = capitalGainForSale({
+    saleAmount,
+    equityValue: equity,
+    costBase,
+    reformBase,
+    reformIndexedBase,
+    usesReformedCgt
+  });
+  capitalGainsTax = taxOnCapitalGain(capitalGain, taxableIncome, baseTax, inputs);
+
+  return {
+    saleAmount,
+    capitalGainsTax,
+    taxableGain: capitalGain.taxableGain,
+    grossGain: capitalGain.grossGain,
+    soldCostBase: capitalGain.soldCostBase,
+    soldReformBase: capitalGain.soldReformBase,
+    soldReformIndexedBase: capitalGain.soldReformIndexedBase,
+    uncoveredShortfall: Math.max(0, shortfall + capitalGainsTax - saleAmount)
+  };
+}
+
 function calculateProjection(inputs) {
   const rows = [];
   let cash = inputs.cash;
   let equity = inputs.equityValue;
+  let equityCostBase =
+    inputs.equityCostBase > 0 ? Math.min(inputs.equityCostBase, equity) : 0;
+  let equityReformBase = null;
+  let equityReformIndexedBase = null;
   let superBalance = inputs.superBalance;
   const properties = inputs.investmentProperties.map((property) => ({ ...property }));
   let homeValue = inputs.homeValue;
@@ -323,6 +451,8 @@ function calculateProjection(inputs) {
 
   for (let year = 1; year <= inputs.years; year += 1) {
     const age = inputs.currentAge + year - 1;
+    const financialYear = inputs.projectionStartYear + year - 1;
+    const usesReformedCgt = financialYear >= 2027;
     const isWorkingYear = year <= inputs.workingYears;
     const canAccessSuper = !isWorkingYear && age >= inputs.superAccessAge;
     const expenseInflator = Math.pow(1 + inputs.inflationRate, year - 1);
@@ -339,6 +469,15 @@ function calculateProjection(inputs) {
       : 0;
     const netSuperContribution =
       grossSuperContribution * (1 - inputs.superContributionTaxRate);
+
+    if (usesReformedCgt && equityReformBase === null) {
+      equityReformBase = equity;
+      equityReformIndexedBase = equity;
+    }
+
+    if (equityReformIndexedBase !== null) {
+      equityReformIndexedBase *= 1 + inputs.inflationRate;
+    }
 
     const equityDividends = equity * inputs.dividendYield;
     const propertyTotals = properties.reduce(
@@ -366,7 +505,9 @@ function calculateProjection(inputs) {
       inputs.otherIncome +
       equityDividends +
       propertyTotals.rentalTaxable;
-    const tax = totalTax(taxableIncome, inputs);
+    let tax = totalTax(taxableIncome, inputs);
+    let capitalGainsTax = 0;
+    let taxableCapitalGain = 0;
 
     const homeInterestBearingLoan = Math.max(0, homeLoan - inputs.homeOffset);
     const homeInterest = Math.max(0, homeInterestBearingLoan * inputs.homeInterestRate);
@@ -385,6 +526,13 @@ function calculateProjection(inputs) {
 
     let adjustedCashSurplus = cashSurplus;
     equity = equity * (1 + inputs.equityGrowthRate) + equityContribution + reinvestedDividends;
+    equityCostBase += equityContribution + reinvestedDividends;
+
+    if (equityReformBase !== null && equityReformIndexedBase !== null) {
+      equityReformBase += equityContribution + reinvestedDividends;
+      equityReformIndexedBase += equityContribution + reinvestedDividends;
+    }
+
     superBalance = superBalance * (1 + inputs.superGrowthRate) + netSuperContribution;
     for (const property of properties) {
       const interestBearingLoan = Math.max(0, property.loan - property.offset);
@@ -405,9 +553,38 @@ function calculateProjection(inputs) {
       }
 
       if (shortfall > 0) {
-        const equityWithdrawal = Math.min(equity, shortfall);
-        equity -= equityWithdrawal;
-        shortfall -= equityWithdrawal;
+        const equitySale = planEquitySaleForShortfall({
+          shortfall,
+          equity,
+          costBase: equityCostBase,
+          reformBase: equityReformBase,
+          reformIndexedBase: equityReformIndexedBase,
+          usesReformedCgt,
+          taxableIncome,
+          baseTax: tax,
+          inputs
+        });
+
+        if (equitySale) {
+          equity -= equitySale.saleAmount;
+          equityCostBase = Math.max(0, equityCostBase - equitySale.soldCostBase);
+
+          if (equityReformBase !== null && equityReformIndexedBase !== null) {
+            equityReformBase = Math.max(
+              0,
+              equityReformBase - equitySale.soldReformBase
+            );
+            equityReformIndexedBase = Math.max(
+              0,
+              equityReformIndexedBase - equitySale.soldReformIndexedBase
+            );
+          }
+
+          capitalGainsTax = equitySale.capitalGainsTax;
+          taxableCapitalGain = equitySale.taxableGain;
+          tax += capitalGainsTax;
+          shortfall = equitySale.uncoveredShortfall;
+        }
       }
 
       adjustedCashSurplus = -shortfall;
@@ -425,8 +602,9 @@ function calculateProjection(inputs) {
     rows.push({
       year,
       age,
-      taxableIncome,
+      taxableIncome: taxableIncome + taxableCapitalGain,
       tax,
+      capitalGainsTax,
       cashSurplus: adjustedCashSurplus,
       cash,
       offsetBalance,
@@ -626,6 +804,7 @@ function renderTable(rows) {
       row.age,
       money(row.taxableIncome),
       money(row.tax),
+      money(row.capitalGainsTax),
       money(row.cashSurplus),
       money(row.equity),
       money(row.superBalance),

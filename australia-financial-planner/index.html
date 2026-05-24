@@ -25,9 +25,9 @@
         <div class="assumption-note">
           <strong>Estimator only.</strong>
           Uses simplified Australian resident tax bands and a flat Medicare levy
-          setting. It does not handle offsets, HELP, super, CGT discounts,
-          depreciation, land tax, stamp duty, transfer balance caps, minimum
-          pension drawdowns, or personal advice.
+          setting. It does not handle offsets, HELP, detailed CGT parcel
+          accounting, depreciation, land tax, stamp duty, transfer balance caps,
+          minimum pension drawdowns, or personal advice.
         </div>
       </div>
     </header>
@@ -132,6 +132,10 @@
             <label>
               Current portfolio
               <input name="equityValue" type="number" min="0" step="1000" value="120000">
+            </label>
+            <label>
+              Portfolio cost base
+              <input name="equityCostBase" type="number" min="0" step="1000" value="90000">
             </label>
             <label>
               Annual contribution
@@ -340,14 +344,17 @@
             <h2>Tax and Super Sources</h2>
             <p>
               Tax bands, super contribution caps, and contribution tax defaults
-              are based on ATO guidance. Super access is simplified to an
-              editable access age.
+              are based on ATO guidance. Equity withdrawal CGT is simplified
+              using the 2026-27 Budget reform timing, CPI indexation from the
+              inflation input, a 30% minimum tax floor on post-reform real
+              gains, and an editable portfolio cost base.
             </p>
             <ul>
               <li><a href="https://www.ato.gov.au/tax-rates-and-codes/tax-rates-australian-residents" target="_blank" rel="noreferrer">ATO resident tax rates</a></li>
               <li><a href="https://www.ato.gov.au/calculators-and-tools/medicare-levy-calculator" target="_blank" rel="noreferrer">ATO Medicare levy calculator</a></li>
               <li><a href="https://www.ato.gov.au/tax-rates-and-codes/key-superannuation-rates-and-thresholds/contributions-caps" target="_blank" rel="noreferrer">ATO super contribution caps</a></li>
               <li><a href="https://www.ato.gov.au/individuals-and-families/super-for-individuals-and-families/super/withdrawing-and-using-your-super/super-withdrawal-options" target="_blank" rel="noreferrer">ATO super withdrawal options</a></li>
+              <li><a href="https://budget.gov.au/content/factsheets/download/tax-explainers-negative-gearing-capital-gains-tax.pdf" target="_blank" rel="noreferrer">Budget 2026-27 CGT reform explainer</a></li>
             </ul>
           </article>
         </section>
@@ -365,6 +372,7 @@
                   <th>Age</th>
                   <th>Taxable income</th>
                   <th>Tax</th>
+                  <th>CGT tax</th>
                   <th>Surplus</th>
                   <th>Portfolio</th>
                   <th>Super</th>
