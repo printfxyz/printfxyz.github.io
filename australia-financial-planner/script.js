@@ -455,9 +455,7 @@ function calculateProjection(inputs) {
   const properties = inputs.investmentProperties.map((property) => ({ ...property }));
   let homeValue = inputs.homeValue;
   let homeLoan = inputs.homeLoan;
-  const offsetBalance =
-    inputs.homeOffset +
-    properties.reduce((total, property) => total + property.offset, 0);
+  let homeOffset = inputs.homeOffset;
 
   for (let year = 1; year <= inputs.years; year += 1) {
     const age = inputs.currentAge + year - 1;
@@ -520,23 +518,27 @@ function calculateProjection(inputs) {
 
     const homeMortgage = fixedMortgagePayment(
       homeLoan,
-      inputs.homeOffset,
+      homeOffset,
       inputs.homePayment,
       inputs.homeInterestRate
     );
     const dividendCash = inputs.reinvestDividends ? 0 : equityDividends;
     const reinvestedDividends = inputs.reinvestDividends ? equityDividends : 0;
-    const cashSurplus =
+    const cashBeforeHomePayment =
       employmentIncome +
       inputs.otherIncome +
       dividendCash +
       propertyTotals.cashflow -
       tax -
       livingExpenses -
-      equityContribution -
-      homeMortgage.payment;
+      equityContribution;
+    const homePaymentFromIncome = Math.min(
+      homeMortgage.payment,
+      Math.max(0, cashBeforeHomePayment)
+    );
+    let remainingHomePayment = homeMortgage.payment - homePaymentFromIncome;
 
-    let adjustedCashSurplus = cashSurplus;
+    let adjustedCashSurplus = cashBeforeHomePayment - homePaymentFromIncome;
     equity = equity * (1 + inputs.equityGrowthRate) + equityContribution + reinvestedDividends;
     equityCostBase += equityContribution + reinvestedDividends;
 
@@ -546,6 +548,50 @@ function calculateProjection(inputs) {
     }
 
     superBalance = superBalance * (1 + inputs.superGrowthRate) + netSuperContribution;
+    function useEquityForShortfall(shortfall) {
+      if (shortfall <= 0) {
+        return 0;
+      }
+
+      const equitySale = planEquitySaleForShortfall({
+        shortfall,
+        equity,
+        costBase: equityCostBase,
+        reformBase: equityReformBase,
+        reformIndexedBase: equityReformIndexedBase,
+        usesReformedCgt,
+        taxableIncome: taxableIncome + taxableCapitalGain,
+        baseTax: tax,
+        inputs
+      });
+
+      if (!equitySale) {
+        return shortfall;
+      }
+
+      equity -= equitySale.saleAmount;
+      equityCostBase = Math.max(0, equityCostBase - equitySale.soldCostBase);
+
+      if (equityReformBase !== null && equityReformIndexedBase !== null) {
+        equityReformBase = Math.max(0, equityReformBase - equitySale.soldReformBase);
+        equityReformIndexedBase = Math.max(
+          0,
+          equityReformIndexedBase - equitySale.soldReformIndexedBase
+        );
+      }
+
+      capitalGainsTax += equitySale.capitalGainsTax;
+      taxableCapitalGain += equitySale.taxableGain;
+      tax += equitySale.capitalGainsTax;
+
+      return equitySale.uncoveredShortfall;
+    }
+
+    const homeOffsetDraw = Math.min(homeOffset, remainingHomePayment);
+    homeOffset -= homeOffsetDraw;
+    remainingHomePayment -= homeOffsetDraw;
+    remainingHomePayment = useEquityForShortfall(remainingHomePayment);
+
     for (const property of properties) {
       const mortgage = fixedMortgagePayment(
         property.loan,
@@ -557,7 +603,13 @@ function calculateProjection(inputs) {
       property.loan = Math.max(0, property.loan - mortgage.principal);
     }
     homeValue *= 1 + inputs.homeGrowthRate;
-    homeLoan = Math.max(0, homeLoan - homeMortgage.principal);
+    const fundedHomePayment = homeMortgage.payment - remainingHomePayment;
+    const homePrincipal = Math.min(
+      homeLoan,
+      Math.max(0, fundedHomePayment - homeMortgage.interest)
+    );
+    homeLoan = Math.max(0, homeLoan - homePrincipal);
+    adjustedCashSurplus -= remainingHomePayment;
 
     if (!isWorkingYear && adjustedCashSurplus < 0) {
       let shortfall = -adjustedCashSurplus;
@@ -568,38 +620,7 @@ function calculateProjection(inputs) {
       }
 
       if (shortfall > 0) {
-        const equitySale = planEquitySaleForShortfall({
-          shortfall,
-          equity,
-          costBase: equityCostBase,
-          reformBase: equityReformBase,
-          reformIndexedBase: equityReformIndexedBase,
-          usesReformedCgt,
-          taxableIncome,
-          baseTax: tax,
-          inputs
-        });
-
-        if (equitySale) {
-          equity -= equitySale.saleAmount;
-          equityCostBase = Math.max(0, equityCostBase - equitySale.soldCostBase);
-
-          if (equityReformBase !== null && equityReformIndexedBase !== null) {
-            equityReformBase = Math.max(
-              0,
-              equityReformBase - equitySale.soldReformBase
-            );
-            equityReformIndexedBase = Math.max(
-              0,
-              equityReformIndexedBase - equitySale.soldReformIndexedBase
-            );
-          }
-
-          capitalGainsTax = equitySale.capitalGainsTax;
-          taxableCapitalGain = equitySale.taxableGain;
-          tax += capitalGainsTax;
-          shortfall = equitySale.uncoveredShortfall;
-        }
+        shortfall = useEquityForShortfall(shortfall);
       }
 
       adjustedCashSurplus = -shortfall;
@@ -611,6 +632,8 @@ function calculateProjection(inputs) {
       0
     );
     const homeEquity = homeValue - homeLoan;
+    const offsetBalance =
+      homeOffset + properties.reduce((total, property) => total + property.offset, 0);
     const netWorth = cash + equity + superBalance + ipEquity + homeEquity + offsetBalance;
     const realNetWorth = netWorth / Math.pow(1 + inputs.inflationRate, year);
 
