@@ -316,6 +316,27 @@ function totalTax(taxableIncome, inputs) {
   return baseTax + medicare;
 }
 
+function fixedMortgagePayment(loan, offset, annualPayment, interestRate) {
+  if (loan <= 0 || annualPayment <= 0) {
+    return {
+      interest: 0,
+      principal: 0,
+      payment: 0
+    };
+  }
+
+  const interestBearingLoan = Math.max(0, loan - offset);
+  const interest = Math.max(0, interestBearingLoan * interestRate);
+  const payment = Math.min(annualPayment, loan + interest);
+  const principal = Math.min(loan, Math.max(0, payment - interest));
+
+  return {
+    interest,
+    principal,
+    payment
+  };
+}
+
 function capitalGainForSale({
   saleAmount,
   equityValue,
@@ -485,16 +506,15 @@ function calculateProjection(inputs) {
         const rentInflator = Math.pow(1 + property.rentalIncreaseRate, year - 1);
         const rentalIncome = property.rentalIncome * rentInflator;
         const expenses = property.expenses * expenseInflator;
-        const interestBearingLoan = Math.max(0, property.loan - property.offset);
-        const interest = Math.max(0, interestBearingLoan * property.interestRate);
-        const principal = Math.min(
+        const mortgage = fixedMortgagePayment(
           property.loan,
-          Math.max(0, property.payment - interest)
+          property.offset,
+          property.payment,
+          property.interestRate
         );
-        const mortgagePayment = interest + principal;
 
-        totals.rentalTaxable += rentalIncome - expenses - interest;
-        totals.cashflow += rentalIncome - expenses - mortgagePayment;
+        totals.rentalTaxable += rentalIncome - expenses - mortgage.interest;
+        totals.cashflow += rentalIncome - expenses - mortgage.payment;
 
         return totals;
       },
@@ -509,10 +529,12 @@ function calculateProjection(inputs) {
     let capitalGainsTax = 0;
     let taxableCapitalGain = 0;
 
-    const homeInterestBearingLoan = Math.max(0, homeLoan - inputs.homeOffset);
-    const homeInterest = Math.max(0, homeInterestBearingLoan * inputs.homeInterestRate);
-    const homePrincipal = Math.min(homeLoan, Math.max(0, inputs.homePayment - homeInterest));
-    const homeMortgagePayment = homeInterest + homePrincipal;
+    const homeMortgage = fixedMortgagePayment(
+      homeLoan,
+      inputs.homeOffset,
+      inputs.homePayment,
+      inputs.homeInterestRate
+    );
     const dividendCash = inputs.reinvestDividends ? 0 : equityDividends;
     const reinvestedDividends = inputs.reinvestDividends ? equityDividends : 0;
     const cashSurplus =
@@ -523,7 +545,7 @@ function calculateProjection(inputs) {
       tax -
       livingExpenses -
       equityContribution -
-      homeMortgagePayment;
+      homeMortgage.payment;
 
     let adjustedCashSurplus = cashSurplus;
     equity = equity * (1 + inputs.equityGrowthRate) + equityContribution + reinvestedDividends;
@@ -536,14 +558,17 @@ function calculateProjection(inputs) {
 
     superBalance = superBalance * (1 + inputs.superGrowthRate) + netSuperContribution;
     for (const property of properties) {
-      const interestBearingLoan = Math.max(0, property.loan - property.offset);
-      const interest = Math.max(0, interestBearingLoan * property.interestRate);
-      const principal = Math.min(property.loan, Math.max(0, property.payment - interest));
+      const mortgage = fixedMortgagePayment(
+        property.loan,
+        property.offset,
+        property.payment,
+        property.interestRate
+      );
       property.value *= 1 + property.growthRate;
-      property.loan = Math.max(0, property.loan - principal);
+      property.loan = Math.max(0, property.loan - mortgage.principal);
     }
     homeValue *= 1 + inputs.homeGrowthRate;
-    homeLoan = Math.max(0, homeLoan - homePrincipal);
+    homeLoan = Math.max(0, homeLoan - homeMortgage.principal);
 
     if (!isWorkingYear && adjustedCashSurplus < 0) {
       let shortfall = -adjustedCashSurplus;
