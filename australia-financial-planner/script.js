@@ -23,6 +23,8 @@ const propertyList = document.querySelector("#property-list");
 const propertyEmpty = document.querySelector("#property-empty");
 const addPropertyButton = document.querySelector("#add-property");
 const calculateButton = document.querySelector("#calculate-plan");
+const optimizeButton = document.querySelector("#optimize-plan");
+const optimizerOutput = document.querySelector("#optimizer-output");
 const STORAGE_KEY = "australia-financial-planner:v1";
 const TAP_SUPPRESSION_MS = 700;
 let lastTouchActivation = 0;
@@ -243,6 +245,8 @@ function getInputs() {
     homeGrowthRate: percent("homeGrowthRate"),
     homeInterestRate: percent("homeInterestRate"),
     homePayment: numberValue("homePayment"),
+    optimizerGoal: data.get("optimizerGoal"),
+    cashReserveMonths: Math.max(0, numberValue("cashReserveMonths")),
     years: Math.max(1, lifeExpectancy - currentAge + 1)
   };
 }
@@ -398,6 +402,250 @@ function calculateProjection(inputs) {
   }
 
   return rows;
+}
+
+function cloneInputs(inputs) {
+  return {
+    ...inputs,
+    investmentProperties: inputs.investmentProperties.map((property) => ({ ...property }))
+  };
+}
+
+function getLiquidPool(inputs) {
+  return (
+    inputs.cash +
+    inputs.equityValue +
+    inputs.homeOffset +
+    inputs.investmentProperties.reduce((total, property) => total + property.offset, 0)
+  );
+}
+
+function getCashReserve(inputs, pool) {
+  return Math.min(Math.max(0, pool), inputs.livingExpenses * (inputs.cashReserveMonths / 12));
+}
+
+function createAllocation(name, inputs, reserve) {
+  return {
+    name,
+    cash: reserve,
+    equityValue: 0,
+    homeOffset: 0,
+    propertyOffsets: inputs.investmentProperties.map(() => 0)
+  };
+}
+
+function applyTargetAllocation(allocation, amount, targets) {
+  let remaining = amount;
+
+  for (const target of targets) {
+    if (remaining <= 0) {
+      break;
+    }
+
+    const applied = Math.min(remaining, target.capacity);
+    if (target.type === "home") {
+      allocation.homeOffset += applied;
+    } else {
+      allocation.propertyOffsets[target.index] += applied;
+    }
+    remaining -= applied;
+  }
+
+  return remaining;
+}
+
+function getOffsetTargets(inputs, scope = "all") {
+  const targets = [];
+
+  if (scope !== "investment") {
+    targets.push({
+      capacity: Math.max(0, inputs.homeLoan),
+      rate: inputs.homeInterestRate,
+      type: "home"
+    });
+  }
+
+  if (scope !== "home") {
+    inputs.investmentProperties.forEach((property, index) => {
+      targets.push({
+        capacity: Math.max(0, property.loan),
+        index,
+        rate: property.interestRate,
+        type: "property"
+      });
+    });
+  }
+
+  return targets
+    .filter((target) => target.capacity > 0 && target.rate > 0)
+    .sort((a, b) => b.rate - a.rate);
+}
+
+function buildAllocations(inputs) {
+  const pool = getLiquidPool(inputs);
+  const reserve = getCashReserve(inputs, pool);
+  const allocatable = Math.max(0, pool - reserve);
+  const allocations = [
+    {
+      name: "Current allocation",
+      cash: inputs.cash,
+      equityValue: inputs.equityValue,
+      homeOffset: inputs.homeOffset,
+      propertyOffsets: inputs.investmentProperties.map((property) => property.offset)
+    }
+  ];
+
+  const equityFocus = createAllocation("Equity focus", inputs, reserve);
+  equityFocus.equityValue = allocatable;
+  allocations.push(equityFocus);
+
+  const homeOffset = createAllocation("Home offset first", inputs, reserve);
+  homeOffset.equityValue = applyTargetAllocation(
+    homeOffset,
+    allocatable,
+    getOffsetTargets(inputs, "home")
+  );
+  allocations.push(homeOffset);
+
+  const investmentOffsets = createAllocation("Investment offsets first", inputs, reserve);
+  investmentOffsets.equityValue = applyTargetAllocation(
+    investmentOffsets,
+    allocatable,
+    getOffsetTargets(inputs, "investment")
+  );
+  allocations.push(investmentOffsets);
+
+  const highestRateOffsets = createAllocation("Highest-rate offsets first", inputs, reserve);
+  highestRateOffsets.equityValue = applyTargetAllocation(
+    highestRateOffsets,
+    allocatable,
+    getOffsetTargets(inputs)
+  );
+  allocations.push(highestRateOffsets);
+
+  const balanced = createAllocation("Balanced equity and offsets", inputs, reserve);
+  const offsetBudget = allocatable / 2;
+  balanced.equityValue =
+    allocatable -
+    offsetBudget +
+    applyTargetAllocation(balanced, offsetBudget, getOffsetTargets(inputs));
+  allocations.push(balanced);
+
+  return allocations;
+}
+
+function applyAllocationToInputs(inputs, allocation, workingYears = inputs.workingYears) {
+  const next = cloneInputs(inputs);
+  next.cash = allocation.cash;
+  next.equityValue = allocation.equityValue;
+  next.homeOffset = allocation.homeOffset;
+  next.workingYears = workingYears;
+  next.investmentProperties.forEach((property, index) => {
+    property.offset = allocation.propertyOffsets[index] || 0;
+  });
+  return next;
+}
+
+function evaluatePlan(inputs, allocation, workingYears = inputs.workingYears) {
+  const next = applyAllocationToInputs(inputs, allocation, workingYears);
+  const rows = calculateProjection(next);
+  const final = rows[rows.length - 1];
+  return {
+    allocation,
+    final,
+    inputs: next,
+    isFeasible: rows.every((row) => row.cash >= -1) && final.netWorth >= 0,
+    rows,
+    workingYears
+  };
+}
+
+function pickBestFinalNetWorth(inputs, allocations) {
+  return allocations
+    .map((allocation) => evaluatePlan(inputs, allocation))
+    .reduce((best, candidate) =>
+      !best || candidate.final.netWorth > best.final.netWorth ? candidate : best
+    );
+}
+
+function pickMinimumWorkingYears(inputs, allocations) {
+  let fallback = null;
+
+  for (let years = 0; years <= inputs.workingYears; years += 1) {
+    const feasible = allocations
+      .map((allocation) => evaluatePlan(inputs, allocation, years))
+      .filter((candidate) => candidate.isFeasible)
+      .sort((a, b) => b.final.netWorth - a.final.netWorth);
+
+    if (feasible.length > 0) {
+      return { ...feasible[0], foundFeasibleEarlyRetirement: true };
+    }
+  }
+
+  fallback = pickBestFinalNetWorth(inputs, allocations);
+  return { ...fallback, foundFeasibleEarlyRetirement: false };
+}
+
+function setNamedInput(name, value) {
+  const control = form.elements[name];
+  if (control) {
+    control.value = Math.round(value);
+  }
+}
+
+function writeAllocationToForm(result) {
+  setNamedInput("cash", result.inputs.cash);
+  setNamedInput("equityValue", result.inputs.equityValue);
+  setNamedInput("homeOffset", result.inputs.homeOffset);
+  setNamedInput("workingYears", result.inputs.workingYears);
+
+  const cards = [...propertyList.querySelectorAll("[data-property-card]")];
+  cards.forEach((card, index) => {
+    const offsetInput = card.querySelector('[data-field="offset"]');
+    if (offsetInput) {
+      offsetInput.value = Math.round(
+        result.inputs.investmentProperties[index]
+          ? result.inputs.investmentProperties[index].offset
+          : 0
+      );
+    }
+  });
+}
+
+function getAllocationSummary(result) {
+  const investmentOffsets = result.inputs.investmentProperties.reduce(
+    (total, property) => total + property.offset,
+    0
+  );
+  return [
+    result.allocation.name,
+    `cash ${money(result.inputs.cash)}`,
+    `equities ${money(result.inputs.equityValue)}`,
+    `home offset ${money(result.inputs.homeOffset)}`,
+    `investment offsets ${money(investmentOffsets)}`
+  ].join(" | ");
+}
+
+function optimizePlan() {
+  const inputs = getInputs();
+  const allocations = buildAllocations(inputs);
+  const result =
+    inputs.optimizerGoal === "minimize-working-years"
+      ? pickMinimumWorkingYears(inputs, allocations)
+      : pickBestFinalNetWorth(inputs, allocations);
+
+  writeAllocationToForm(result);
+  saveState();
+  update();
+
+  if (inputs.optimizerGoal === "minimize-working-years") {
+    optimizerOutput.textContent = result.foundFeasibleEarlyRetirement
+      ? `Optimised to ${result.workingYears} working years. ${getAllocationSummary(result)}. Final net worth ${money(result.final.netWorth)}.`
+      : `No shorter feasible working period was found. Best tested plan kept ${result.workingYears} working years. ${getAllocationSummary(result)}. Final net worth ${money(result.final.netWorth)}.`;
+    return;
+  }
+
+  optimizerOutput.textContent = `Optimised for final net worth. ${getAllocationSummary(result)}. Final net worth ${money(result.final.netWorth)}.`;
 }
 
 function createPropertyCard(values = {}, options = {}) {
@@ -634,6 +882,7 @@ form.addEventListener("input", saveState);
 form.addEventListener("submit", (event) => event.preventDefault());
 activateOnTap(addPropertyButton, () => createPropertyCard());
 activateOnTap(calculateButton, update);
+activateOnTap(optimizeButton, optimizePlan);
 window.addEventListener("resize", () => {
   if (latestRows.length > 0) {
     drawChart(latestRows);

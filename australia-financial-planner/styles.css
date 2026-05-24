@@ -178,7 +178,8 @@ h2 {
 
 .small-button:hover,
 .remove-property:hover,
-.calculate-button:hover {
+.calculate-button:hover,
+.secondary-action:hover {
   border-color: var(--accent);
   color: var(--accent);
 }
@@ -223,7 +224,20 @@ h2 {
   padding: 12px;
 }
 
+.optimizer-output {
+  margin: 12px 0 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfd;
+  color: var(--muted);
+  line-height: 1.5;
+  padding: 12px;
+}
+
 .form-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
   position: sticky;
   bottom: 16px;
   z-index: 2;
@@ -234,7 +248,8 @@ h2 {
   padding: 10px;
 }
 
-.calculate-button {
+.calculate-button,
+.secondary-action {
   width: 100%;
   min-height: 46px;
   border: 1px solid var(--accent);
@@ -247,8 +262,18 @@ h2 {
   padding: 0 16px;
 }
 
+.secondary-action {
+  background: #fff;
+  color: var(--accent);
+}
+
 .calculate-button:hover {
   background: #fff;
+}
+
+.secondary-action:hover {
+  background: var(--accent);
+  color: #fff;
 }
 
 .field-grid {
@@ -480,6 +505,10 @@ tbody tr:last-child td {
   .section-title-actions {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .form-actions {
+    grid-template-columns: 1fr;
   }
 
   h1 {
