@@ -24,6 +24,8 @@ const propertyEmpty = document.querySelector("#property-empty");
 const addPropertyButton = document.querySelector("#add-property");
 const calculateButton = document.querySelector("#calculate-plan");
 const allocationOutput = document.querySelector("#allocation-output");
+const allocationEquityLabel = document.querySelector("#allocation-equity-label");
+const allocationOffsetLabel = document.querySelector("#allocation-offset-label");
 const STORAGE_KEY = "australia-financial-planner:v1";
 const TAP_SUPPRESSION_MS = 700;
 let lastTouchActivation = 0;
@@ -76,29 +78,15 @@ function financialYearStart(taxYear) {
 
 function getAllocation() {
   const amount = Math.max(0, numberValue("allocatableMoney"));
-  const equityRate = Math.max(0, percent("allocationEquityRate"));
-  const offsetRate = Math.max(0, percent("allocationOffsetRate"));
-  const totalRate = equityRate + offsetRate;
-
-  if (totalRate <= 0) {
-    return {
-      amount,
-      equityAmount: 0,
-      offsetAmount: 0,
-      isNormalised: false,
-      hasValidSplit: false
-    };
-  }
-
-  const equityShare = equityRate / totalRate;
-  const offsetShare = offsetRate / totalRate;
+  const equityShare = Math.max(0, Math.min(1, percent("allocationEquityRate")));
+  const offsetShare = 1 - equityShare;
 
   return {
     amount,
     equityAmount: amount * equityShare,
     offsetAmount: amount * offsetShare,
-    isNormalised: Math.abs(totalRate - 1) > 0.0001,
-    hasValidSplit: true
+    equityPercent: Math.round(equityShare * 100),
+    offsetPercent: Math.round(offsetShare * 100)
   };
 }
 
@@ -833,22 +821,25 @@ function setMoney(element, value) {
   element.classList.toggle("negative", value < 0);
 }
 
+function updateAllocationSliderLabels(allocation = getAllocation()) {
+  if (allocationEquityLabel) {
+    allocationEquityLabel.textContent = `${allocation.equityPercent}%`;
+  }
+
+  if (allocationOffsetLabel) {
+    allocationOffsetLabel.textContent = `${allocation.offsetPercent}%`;
+  }
+}
+
 function renderAllocationSummary(allocation) {
+  updateAllocationSliderLabels(allocation);
+
   if (!allocationOutput) {
     return;
   }
 
-  if (!allocation.hasValidSplit) {
-    allocationOutput.textContent =
-      "Enter an equity or mortgage offset allocation percentage before calculating.";
-    return;
-  }
-
-  const normalisedCopy = allocation.isNormalised
-    ? " Percentages were normalised to split the full amount."
-    : "";
   allocationOutput.textContent =
-    `${money(allocation.equityAmount)} starts in equities and also sets the portfolio cost base. ${money(allocation.offsetAmount)} starts in the primary-home offset.${normalisedCopy}`;
+    `${money(allocation.equityAmount)} starts in equities and also sets the portfolio cost base. ${money(allocation.offsetAmount)} starts in the primary-home offset.`;
 }
 
 function renderTable(rows) {
@@ -908,7 +899,10 @@ function update() {
   saveState();
 }
 
-form.addEventListener("input", saveState);
+form.addEventListener("input", () => {
+  updateAllocationSliderLabels();
+  saveState();
+});
 form.addEventListener("submit", (event) => event.preventDefault());
 activateOnTap(addPropertyButton, () => createPropertyCard());
 activateOnTap(calculateButton, update);
@@ -918,5 +912,6 @@ window.addEventListener("resize", () => {
   }
 });
 restoreState();
+updateAllocationSliderLabels();
 refreshPropertyControls();
 update();

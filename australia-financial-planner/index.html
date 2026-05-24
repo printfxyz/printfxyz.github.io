@@ -247,13 +247,12 @@
               Allocatable money
               <input name="allocatableMoney" type="number" min="0" step="1000" value="120000">
             </label>
-            <label>
-              Equity allocation %
-              <input name="allocationEquityRate" type="number" min="0" step="1" value="50">
-            </label>
-            <label>
-              Mortgage offset allocation %
-              <input name="allocationOffsetRate" type="number" min="0" step="1" value="50">
+            <label class="range-field">
+              <span class="range-label">
+                <span>Allocation</span>
+                <strong><span id="allocation-equity-label">50%</span> equity / <span id="allocation-offset-label">50%</span> offset</strong>
+              </span>
+              <input name="allocationEquityRate" type="range" min="0" max="100" step="1" value="50">
             </label>
           </div>
           <p id="allocation-output" class="allocation-output">
