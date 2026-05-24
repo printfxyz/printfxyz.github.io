@@ -569,10 +569,18 @@ function pickMinimumWorkingYears(inputs, allocations) {
   return { ...fallback, foundFeasibleEarlyRetirement: false };
 }
 
+function markOptimized(control) {
+  if (control) {
+    control.classList.add("optimized-field");
+    window.setTimeout(() => control.classList.remove("optimized-field"), 1400);
+  }
+}
+
 function setNamedInput(name, value) {
-  const control = form.elements[name];
+  const control = form.querySelector(`[name="${name}"]`);
   if (control) {
     control.value = Math.round(value);
+    markOptimized(control);
   }
 }
 
@@ -590,6 +598,7 @@ function writeAllocationToForm(result) {
           ? result.inputs.investmentProperties[index].offset
           : 0
       );
+      markOptimized(offsetInput);
     }
   });
 }
