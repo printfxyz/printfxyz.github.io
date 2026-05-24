@@ -23,7 +23,6 @@ const propertyList = document.querySelector("#property-list");
 const propertyEmpty = document.querySelector("#property-empty");
 const addPropertyButton = document.querySelector("#add-property");
 const calculateButton = document.querySelector("#calculate-plan");
-const applyAllocationButton = document.querySelector("#apply-allocation");
 const allocationOutput = document.querySelector("#allocation-output");
 const STORAGE_KEY = "australia-financial-planner:v1";
 const TAP_SUPPRESSION_MS = 700;
@@ -75,44 +74,32 @@ function financialYearStart(taxYear) {
   return match ? Number(match[1]) : 2025;
 }
 
-function setNamedInputValue(name, value) {
-  const control = form.elements[name];
-  if (!control) {
-    return;
-  }
-
-  control.value = Math.round(value);
-  control.classList.add("applied-field");
-  window.setTimeout(() => control.classList.remove("applied-field"), 1200);
-}
-
-function applyManualAllocation() {
+function getAllocation() {
   const amount = Math.max(0, numberValue("allocatableMoney"));
   const equityRate = Math.max(0, percent("allocationEquityRate"));
   const offsetRate = Math.max(0, percent("allocationOffsetRate"));
   const totalRate = equityRate + offsetRate;
 
   if (totalRate <= 0) {
-    allocationOutput.textContent =
-      "Enter an equity or mortgage offset allocation percentage before applying.";
-    return;
+    return {
+      amount,
+      equityAmount: 0,
+      offsetAmount: 0,
+      isNormalised: false,
+      hasValidSplit: false
+    };
   }
 
   const equityShare = equityRate / totalRate;
   const offsetShare = offsetRate / totalRate;
-  const equityAmount = amount * equityShare;
-  const offsetAmount = amount * offsetShare;
 
-  setNamedInputValue("equityValue", equityAmount);
-  setNamedInputValue("homeOffset", offsetAmount);
-
-  const normalisedCopy =
-    totalRate > 0 && Math.abs(totalRate - 1) > 0.0001
-      ? " Percentages were normalised to split the full amount."
-      : "";
-  allocationOutput.textContent =
-    `Applied ${money(equityAmount)} to equities and ${money(offsetAmount)} to mortgage offset.${normalisedCopy} Click Calculate to update results.`;
-  saveState();
+  return {
+    amount,
+    equityAmount: amount * equityShare,
+    offsetAmount: amount * offsetShare,
+    isNormalised: Math.abs(totalRate - 1) > 0.0001,
+    hasValidSplit: true
+  };
 }
 
 function propertyNumber(card, field) {
@@ -254,6 +241,7 @@ function restoreState() {
 
 function getInputs() {
   const data = new FormData(form);
+  const allocation = getAllocation();
   const currentAge = Math.max(0, Math.min(120, Math.round(numberValue("currentAge"))));
   const lifeExpectancy = Math.max(
     currentAge,
@@ -278,8 +266,9 @@ function getInputs() {
     superContributionTaxRate: percent("superContributionTaxRate"),
     superGrowthRate: percent("superGrowthRate"),
     superAccessAge: Math.max(0, Math.min(100, Math.round(numberValue("superAccessAge")))),
-    equityValue: numberValue("equityValue"),
-    equityCostBase: numberValue("equityCostBase"),
+    allocation,
+    equityValue: allocation.equityAmount,
+    equityCostBase: allocation.equityAmount,
     equityContribution: numberValue("equityContribution"),
     equityGrowthRate: percent("equityGrowthRate"),
     dividendYield: percent("dividendYield"),
@@ -287,7 +276,7 @@ function getInputs() {
     investmentProperties: getInvestmentProperties(),
     homeValue: numberValue("homeValue"),
     homeLoan: numberValue("homeLoan"),
-    homeOffset: numberValue("homeOffset"),
+    homeOffset: allocation.offsetAmount,
     homeGrowthRate: percent("homeGrowthRate"),
     homeInterestRate: percent("homeInterestRate"),
     homePayment: numberValue("homePayment"),
@@ -821,6 +810,24 @@ function setMoney(element, value) {
   element.classList.toggle("negative", value < 0);
 }
 
+function renderAllocationSummary(allocation) {
+  if (!allocationOutput) {
+    return;
+  }
+
+  if (!allocation.hasValidSplit) {
+    allocationOutput.textContent =
+      "Enter an equity or mortgage offset allocation percentage before calculating.";
+    return;
+  }
+
+  const normalisedCopy = allocation.isNormalised
+    ? " Percentages were normalised to split the full amount."
+    : "";
+  allocationOutput.textContent =
+    `${money(allocation.equityAmount)} starts in equities and also sets the portfolio cost base. ${money(allocation.offsetAmount)} starts in the primary-home offset.${normalisedCopy}`;
+}
+
 function renderTable(rows) {
   body.innerHTML = "";
   for (const row of rows) {
@@ -859,6 +866,7 @@ function update() {
   const first = rows[0];
   const last = rows[rows.length - 1];
 
+  renderAllocationSummary(inputs.allocation);
   setMoney(fields.finalNetWorth, last.netWorth);
   setMoney(fields.realNetWorth, last.realNetWorth);
   setMoney(fields.yearOneTax, first.tax);
@@ -880,7 +888,6 @@ function update() {
 form.addEventListener("input", saveState);
 form.addEventListener("submit", (event) => event.preventDefault());
 activateOnTap(addPropertyButton, () => createPropertyCard());
-activateOnTap(applyAllocationButton, applyManualAllocation);
 activateOnTap(calculateButton, update);
 window.addEventListener("resize", () => {
   if (latestRows.length > 0) {

@@ -130,14 +130,6 @@
           </div>
           <div class="field-grid">
             <label>
-              Current portfolio
-              <input name="equityValue" type="number" min="0" step="1000" value="120000">
-            </label>
-            <label>
-              Portfolio cost base
-              <input name="equityCostBase" type="number" min="0" step="1000" value="90000">
-            </label>
-            <label>
               Annual contribution
               <input name="equityContribution" type="number" min="0" step="1000" value="30000">
             </label>
@@ -154,33 +146,6 @@
               Reinvest dividends
             </label>
           </div>
-        </section>
-
-        <section class="input-section">
-          <div class="section-title section-title-actions">
-            <div>
-              <h2>Allocation</h2>
-              <span>Investable money</span>
-            </div>
-            <button id="apply-allocation" class="small-button" type="button">Apply allocation</button>
-          </div>
-          <div class="field-grid">
-            <label>
-              Allocatable money
-              <input name="allocatableMoney" type="number" min="0" step="1000" value="0">
-            </label>
-            <label>
-              Equity allocation %
-              <input name="allocationEquityRate" type="number" min="0" step="1" value="50">
-            </label>
-            <label>
-              Mortgage offset allocation %
-              <input name="allocationOffsetRate" type="number" min="0" step="1" value="50">
-            </label>
-          </div>
-          <p id="allocation-output" class="allocation-output">
-            Applies the allocatable money to Current portfolio and primary-home Offset balance.
-          </p>
         </section>
 
         <section class="input-section">
@@ -258,10 +223,6 @@
               <input name="homeLoan" type="number" min="0" step="1000" value="700000">
             </label>
             <label>
-              Offset balance
-              <input name="homeOffset" type="number" min="0" step="1000" value="0">
-            </label>
-            <label>
               Home price growth %
               <input name="homeGrowthRate" type="number" step="0.1" value="3.5">
             </label>
@@ -274,6 +235,30 @@
               <input name="homePayment" type="number" min="0" step="1000" value="54000">
             </label>
           </div>
+        </section>
+
+        <section class="input-section">
+          <div class="section-title">
+            <h2>Allocation</h2>
+            <span>Starting investable money</span>
+          </div>
+          <div class="field-grid">
+            <label>
+              Allocatable money
+              <input name="allocatableMoney" type="number" min="0" step="1000" value="120000">
+            </label>
+            <label>
+              Equity allocation %
+              <input name="allocationEquityRate" type="number" min="0" step="1" value="50">
+            </label>
+            <label>
+              Mortgage offset allocation %
+              <input name="allocationOffsetRate" type="number" min="0" step="1" value="50">
+            </label>
+          </div>
+          <p id="allocation-output" class="allocation-output">
+            Equity allocation becomes the starting portfolio and cost base. Offset allocation goes to the primary-home mortgage offset.
+          </p>
         </section>
 
         <div class="form-actions">
