@@ -22,9 +22,11 @@ const body = document.querySelector("#projection-body");
 const propertyList = document.querySelector("#property-list");
 const propertyEmpty = document.querySelector("#property-empty");
 const addPropertyButton = document.querySelector("#add-property");
+const calculateButton = document.querySelector("#calculate-plan");
 const STORAGE_KEY = "australia-financial-planner:v1";
 const TAP_SUPPRESSION_MS = 700;
 let lastTouchActivation = 0;
+let latestRows = [];
 
 const fields = {
   finalNetWorth: document.querySelector("#final-net-worth"),
@@ -195,7 +197,7 @@ function restoreState() {
     if (Array.isArray(saved.investmentProperties)) {
       propertyList.innerHTML = "";
       saved.investmentProperties.forEach((property) =>
-        createPropertyCard(property, { shouldUpdate: false })
+        createPropertyCard(property, { shouldUpdate: false, shouldSave: false })
       );
     }
   } catch (error) {
@@ -450,8 +452,10 @@ function createPropertyCard(values = {}, options = {}) {
   propertyList.append(card);
   bindPropertyCard(card);
   refreshPropertyControls();
-  if (options.shouldUpdate !== false) {
+  if (options.shouldUpdate === true) {
     update();
+  } else if (options.shouldSave !== false) {
+    saveState();
   }
 }
 
@@ -469,7 +473,7 @@ function removeProperty(button) {
 
   card.remove();
   refreshPropertyControls();
-  update();
+  saveState();
 }
 
 function refreshPropertyControls() {
@@ -604,6 +608,7 @@ function renderTable(rows) {
 function update() {
   const inputs = getInputs();
   const rows = calculateProjection(inputs);
+  latestRows = rows;
   const first = rows[0];
   const last = rows[rows.length - 1];
 
@@ -625,9 +630,15 @@ function update() {
   saveState();
 }
 
-form.addEventListener("input", update);
+form.addEventListener("input", saveState);
+form.addEventListener("submit", (event) => event.preventDefault());
 activateOnTap(addPropertyButton, () => createPropertyCard());
-window.addEventListener("resize", update);
+activateOnTap(calculateButton, update);
+window.addEventListener("resize", () => {
+  if (latestRows.length > 0) {
+    drawChart(latestRows);
+  }
+});
 restoreState();
 refreshPropertyControls();
 update();
