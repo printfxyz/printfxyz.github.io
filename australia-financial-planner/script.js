@@ -512,6 +512,7 @@ function calculateProjection(inputs) {
     const homeInterestBearingLoan = Math.max(0, homeLoan - inputs.homeOffset);
     const homeInterest = Math.max(0, homeInterestBearingLoan * inputs.homeInterestRate);
     const homePrincipal = Math.min(homeLoan, Math.max(0, inputs.homePayment - homeInterest));
+    const homeMortgagePayment = homeInterest + homePrincipal;
     const dividendCash = inputs.reinvestDividends ? 0 : equityDividends;
     const reinvestedDividends = inputs.reinvestDividends ? equityDividends : 0;
     const cashSurplus =
@@ -522,7 +523,7 @@ function calculateProjection(inputs) {
       tax -
       livingExpenses -
       equityContribution -
-      inputs.homePayment;
+      homeMortgagePayment;
 
     let adjustedCashSurplus = cashSurplus;
     equity = equity * (1 + inputs.equityGrowthRate) + equityContribution + reinvestedDividends;
