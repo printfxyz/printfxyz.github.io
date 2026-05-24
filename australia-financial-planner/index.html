@@ -176,6 +176,10 @@
                   <input data-field="loan" type="number" min="0" step="1000" value="520000">
                 </label>
                 <label>
+                  Offset balance
+                  <input data-field="offset" type="number" min="0" step="1000" value="0">
+                </label>
+                <label>
                   Price growth %
                   <input data-field="growthRate" type="number" step="0.1" value="4.0">
                 </label>
@@ -221,6 +225,10 @@
             <label>
               Mortgage balance
               <input name="homeLoan" type="number" min="0" step="1000" value="700000">
+            </label>
+            <label>
+              Offset balance
+              <input name="homeOffset" type="number" min="0" step="1000" value="0">
             </label>
             <label>
               Home price growth %
@@ -289,6 +297,10 @@
               <div>
                 <dt>Cash balance</dt>
                 <dd id="final-cash">$0</dd>
+              </div>
+              <div>
+                <dt>Offset balances</dt>
+                <dd id="final-offsets">$0</dd>
               </div>
             </dl>
           </article>

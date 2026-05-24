@@ -36,6 +36,7 @@ const fields = {
   finalIpEquity: document.querySelector("#final-ip-equity"),
   finalHomeEquity: document.querySelector("#final-home-equity"),
   finalCash: document.querySelector("#final-cash"),
+  finalOffsets: document.querySelector("#final-offsets"),
   chartCaption: document.querySelector("#chart-caption")
 };
 
@@ -116,6 +117,7 @@ function getInvestmentProperties() {
   return [...propertyList.querySelectorAll("[data-property-card]")].map((card) => ({
     value: propertyNumber(card, "value"),
     loan: propertyNumber(card, "loan"),
+    offset: propertyNumber(card, "offset"),
     growthRate: propertyNumber(card, "growthRate") / 100,
     interestRate: propertyNumber(card, "interestRate") / 100,
     rentalIncome: propertyNumber(card, "rentalIncome"),
@@ -129,6 +131,7 @@ function getPropertyState() {
   return [...propertyList.querySelectorAll("[data-property-card]")].map((card) => ({
     value: propertyNumber(card, "value"),
     loan: propertyNumber(card, "loan"),
+    offset: propertyNumber(card, "offset"),
     growthRate: propertyNumber(card, "growthRate"),
     interestRate: propertyNumber(card, "interestRate"),
     rentalIncome: propertyNumber(card, "rentalIncome"),
@@ -234,6 +237,7 @@ function getInputs() {
     investmentProperties: getInvestmentProperties(),
     homeValue: numberValue("homeValue"),
     homeLoan: numberValue("homeLoan"),
+    homeOffset: numberValue("homeOffset"),
     homeGrowthRate: percent("homeGrowthRate"),
     homeInterestRate: percent("homeInterestRate"),
     homePayment: numberValue("homePayment"),
@@ -269,6 +273,9 @@ function calculateProjection(inputs) {
   const properties = inputs.investmentProperties.map((property) => ({ ...property }));
   let homeValue = inputs.homeValue;
   let homeLoan = inputs.homeLoan;
+  const offsetBalance =
+    inputs.homeOffset +
+    properties.reduce((total, property) => total + property.offset, 0);
 
   for (let year = 1; year <= inputs.years; year += 1) {
     const age = inputs.currentAge + year - 1;
@@ -295,7 +302,8 @@ function calculateProjection(inputs) {
         const rentInflator = Math.pow(1 + property.rentalIncreaseRate, year - 1);
         const rentalIncome = property.rentalIncome * rentInflator;
         const expenses = property.expenses * expenseInflator;
-        const interest = Math.max(0, property.loan * property.interestRate);
+        const interestBearingLoan = Math.max(0, property.loan - property.offset);
+        const interest = Math.max(0, interestBearingLoan * property.interestRate);
         const principal = Math.min(
           property.loan,
           Math.max(0, property.payment - interest)
@@ -316,7 +324,8 @@ function calculateProjection(inputs) {
       propertyTotals.rentalTaxable;
     const tax = totalTax(taxableIncome, inputs);
 
-    const homeInterest = Math.max(0, homeLoan * inputs.homeInterestRate);
+    const homeInterestBearingLoan = Math.max(0, homeLoan - inputs.homeOffset);
+    const homeInterest = Math.max(0, homeInterestBearingLoan * inputs.homeInterestRate);
     const homePrincipal = Math.min(homeLoan, Math.max(0, inputs.homePayment - homeInterest));
     const dividendCash = inputs.reinvestDividends ? 0 : equityDividends;
     const reinvestedDividends = inputs.reinvestDividends ? equityDividends : 0;
@@ -334,7 +343,8 @@ function calculateProjection(inputs) {
     equity = equity * (1 + inputs.equityGrowthRate) + equityContribution + reinvestedDividends;
     superBalance = superBalance * (1 + inputs.superGrowthRate) + netSuperContribution;
     for (const property of properties) {
-      const interest = Math.max(0, property.loan * property.interestRate);
+      const interestBearingLoan = Math.max(0, property.loan - property.offset);
+      const interest = Math.max(0, interestBearingLoan * property.interestRate);
       const principal = Math.min(property.loan, Math.max(0, property.payment - interest));
       property.value *= 1 + property.growthRate;
       property.loan = Math.max(0, property.loan - principal);
@@ -365,7 +375,7 @@ function calculateProjection(inputs) {
       0
     );
     const homeEquity = homeValue - homeLoan;
-    const netWorth = cash + equity + superBalance + ipEquity + homeEquity;
+    const netWorth = cash + equity + superBalance + ipEquity + homeEquity + offsetBalance;
     const realNetWorth = netWorth / Math.pow(1 + inputs.inflationRate, year);
 
     rows.push({
@@ -375,6 +385,7 @@ function calculateProjection(inputs) {
       tax,
       cashSurplus: adjustedCashSurplus,
       cash,
+      offsetBalance,
       equity,
       superBalance,
       ipEquity,
@@ -405,6 +416,10 @@ function createPropertyCard(values = {}, options = {}) {
       <label>
         Loan balance
         <input data-field="loan" type="number" min="0" step="1000" value="${valueOrDefault(values.loan, 0)}">
+      </label>
+      <label>
+        Offset balance
+        <input data-field="offset" type="number" min="0" step="1000" value="${valueOrDefault(values.offset, 0)}">
       </label>
       <label>
         Price growth %
@@ -601,6 +616,7 @@ function update() {
   setMoney(fields.finalIpEquity, last.ipEquity);
   setMoney(fields.finalHomeEquity, last.homeEquity);
   setMoney(fields.finalCash, last.cash);
+  setMoney(fields.finalOffsets, last.offsetBalance);
   fields.chartCaption.textContent =
     `${inputs.taxYear}, age ${inputs.currentAge}-${inputs.lifeExpectancy}`;
 
