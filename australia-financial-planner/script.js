@@ -842,6 +842,10 @@ function renderAllocationSummary(allocation) {
     `${money(allocation.equityAmount)} starts in equities and also sets the portfolio cost base. ${money(allocation.offsetAmount)} starts in the primary-home offset.`;
 }
 
+function refreshAllocationPreview() {
+  renderAllocationSummary(getAllocation());
+}
+
 function renderTable(rows) {
   body.innerHTML = "";
   for (const row of rows) {
@@ -900,7 +904,7 @@ function update() {
 }
 
 form.addEventListener("input", () => {
-  updateAllocationSliderLabels();
+  refreshAllocationPreview();
   saveState();
 });
 form.addEventListener("submit", (event) => event.preventDefault());
@@ -912,6 +916,6 @@ window.addEventListener("resize", () => {
   }
 });
 restoreState();
-updateAllocationSliderLabels();
+refreshAllocationPreview();
 refreshPropertyControls();
 update();
