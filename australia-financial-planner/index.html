@@ -245,33 +245,7 @@
           </div>
         </section>
 
-        <section class="input-section">
-          <div class="section-title">
-            <h2>Optimizer</h2>
-            <span>Liquid allocation</span>
-          </div>
-          <div class="field-grid">
-            <label>
-              Goal
-              <select name="optimizerGoal">
-                <option value="maximize-final-net-worth">Maximize final net worth</option>
-                <option value="minimize-working-years">Minimize working years left</option>
-              </select>
-            </label>
-            <label>
-              Cash reserve months
-              <input name="cashReserveMonths" type="number" min="0" step="1" value="6">
-            </label>
-          </div>
-          <p id="optimizer-output" class="optimizer-output">
-            Optimizer can allocate current cash, equity portfolio, and offset
-            balances across cash reserve, equities, and investment-property
-            offsets. Primary-home offset stays fixed.
-          </p>
-        </section>
-
         <div class="form-actions">
-          <button id="optimize-plan" class="secondary-action" type="button">Optimise</button>
           <button id="calculate-plan" class="calculate-button" type="button">Calculate</button>
         </div>
       </form>
