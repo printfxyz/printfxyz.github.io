@@ -533,19 +533,28 @@ function evaluatePlan(inputs, allocation, workingYears = inputs.workingYears) {
   const next = applyAllocationToInputs(inputs, allocation, workingYears);
   const rows = calculateProjection(next);
   const final = rows[rows.length - 1];
+  const hasNonNegativeFinalNetWorth = final.netWorth >= 0;
   return {
     allocation,
     final,
     inputs: next,
-    isFeasible: rows.every((row) => row.cash >= -1) && final.netWorth >= 0,
+    hasNonNegativeFinalNetWorth,
+    isFeasible: rows.every((row) => row.cash >= -1) && hasNonNegativeFinalNetWorth,
     rows,
     workingYears
   };
 }
 
 function pickBestFinalNetWorth(inputs, allocations) {
-  return allocations
+  const candidates = allocations
     .map((allocation) => evaluatePlan(inputs, allocation))
+    .filter((candidate) => candidate.hasNonNegativeFinalNetWorth);
+
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  return candidates
     .reduce((best, candidate) =>
       !best || candidate.final.netWorth > best.final.netWorth ? candidate : best
     );
@@ -566,6 +575,10 @@ function pickMinimumWorkingYears(inputs, allocations) {
   }
 
   fallback = pickBestFinalNetWorth(inputs, allocations);
+  if (!fallback) {
+    return null;
+  }
+
   return { ...fallback, foundFeasibleEarlyRetirement: false };
 }
 
@@ -624,6 +637,13 @@ function optimizePlan() {
     inputs.optimizerGoal === "minimize-working-years"
       ? pickMinimumWorkingYears(inputs, allocations)
       : pickBestFinalNetWorth(inputs, allocations);
+
+  if (!result) {
+    optimizerOutput.textContent =
+      "No tested allocation ended with non-negative final net worth. Inputs were not changed.";
+    update();
+    return;
+  }
 
   writeAllocationToForm(result);
   saveState();
