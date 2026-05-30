@@ -1,0 +1,11 @@
+name = "html-tools-collector"
+main = "src/index.ts"
+compatibility_date = "2026-05-30"
+
+[vars]
+ALLOWED_ORIGINS = "https://printfxyz.github.io,http://localhost:5173,http://127.0.0.1:5173"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "html-tools-submissions"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
